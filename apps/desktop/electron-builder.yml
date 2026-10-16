@@ -1,0 +1,21 @@
+appId: com.smartv.app
+productName: SmartTV
+copyright: Copyright © 2026
+# Must match the electron version in package.json (workaround for
+# electron-builder not resolving the hoisted workspace install).
+electronVersion: 44.8.0
+directories:
+  output: release
+files:
+  - dist/**
+  - "!dist/**/*.d.ts*"
+  - package.json
+win:
+  target:
+    - nsis
+    - dir
+nsis:
+  oneClick: true
+  perMachine: false
+  createDesktopShortcut: true
+  createStartMenuShortcut: true

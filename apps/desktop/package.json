@@ -1,0 +1,31 @@
+{
+  "name": "@smartv/desktop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Smart TV desktop app (Electron) for Windows",
+  "author": "SmartTV",
+  "type": "module",
+  "main": "dist/main.js",
+  "scripts": {
+    "dev": "npm run build && electron .",
+    "build": "tsc -p tsconfig.json && vite build --config vite.renderer.ts",
+    "start": "electron .",
+    "pack": "npm run build && electron-builder --win --x64 --dir",
+    "dist": "npm run build && electron-builder --win --x64",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.renderer.json",
+    "test": "vitest run",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@smartv/shared": "1.0.0"
+  },
+  "optionalDependencies": {
+    "electron": "^44.8.0",
+    "electron-builder": "^26.15.3"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.2",
+    "vite": "^5.4.8",
+    "vitest": "^2.1.3"
+  }
+}

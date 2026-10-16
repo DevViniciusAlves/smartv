@@ -6,3 +6,4 @@ dist/
 apps/web/dist/
 apps/agent/logs/
 apps/agent/*.log
+apps/desktop/release/

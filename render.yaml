@@ -1,7 +1,7 @@
 # NOTE: if the Render service was created manually (not as a Blueprint from
 # this file), the dashboard's Build Command / Start Command take precedence
 # over this file. Keep both in sync:
-#   Build: npm ci --include=dev && npm run build -w packages/shared && npm run build -w apps/server
+#   Build: npm ci --include=dev --omit=optional && npm run build -w packages/shared && npm run build -w apps/server
 #   Start: npm run start -w apps/server
 services:
   - type: web
@@ -9,7 +9,7 @@ services:
     runtime: node
     plan: free
     rootDir: .
-    buildCommand: npm ci --include=dev && npm run build -w packages/shared && npm run build -w apps/server
+    buildCommand: npm ci --include=dev --omit=optional && npm run build -w packages/shared && npm run build -w apps/server
     startCommand: npm run start -w apps/server
     healthCheckPath: /health
     envVars:

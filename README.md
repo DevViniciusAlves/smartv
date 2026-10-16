@@ -25,6 +25,7 @@ Edge (perfil dedicado) -> launcher /tv, YouTube, Netflix, HBO, Disney+ -> HDMI -
 | `server` | Render (Web Service) | `apps/server` |
 | `agent` | PC Windows | `apps/agent` |
 | `extension` | Edge do PC | `apps/extension` |
+| `desktop` | app Windows próprio (Electron) | `apps/desktop` — ver `apps/desktop/README.md` |
 | `shared` | protocolo/tipos | `packages/shared` |
 
 O Vercel só serve as páginas (não suporta WebSocket persistente). O Render só retransmite.
