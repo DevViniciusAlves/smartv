@@ -8,7 +8,7 @@
   "main": "dist/main.js",
   "scripts": {
     "dev": "npm run build && electron .",
-    "build": "tsc -p tsconfig.json && tsc -p tsconfig.preload.json && node scripts/publish-preload.mjs && vite build --config vite.renderer.ts",
+    "build": "npm run build -w @smartv/shared && tsc -p tsconfig.json && tsc -p tsconfig.preload.json && node scripts/publish-preload.mjs && vite build --config vite.renderer.ts",
     "start": "electron .",
     "pack": "npm run build && electron-builder --win --x64 --dir",
     "dist": "npm run build && electron-builder --win --x64",
