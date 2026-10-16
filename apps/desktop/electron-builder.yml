@@ -18,6 +18,8 @@ publish:
   provider: github
   owner: DevViniciusAlves
   repo: smartv
+  # Tags are deliberate releases: publish immediately instead of draft.
+  releaseType: release
 win:
   target:
     - nsis
