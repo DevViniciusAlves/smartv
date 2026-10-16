@@ -133,12 +133,19 @@ médio fixo e use o do PC. O volume interno da TV (infravermelho) não é alter�
 4. Feche o Edge normal. A partir daí, o agente/`start-tv.ps1` abre a janela única em quiosque.
    Fixe a TV em volume médio.
 
-## 5. Controle no celular
+## 5. Controle no celular (pareamento por código + QR)
 
-1. Primeira abertura: `https://seu-app.vercel.app/controle?k=SEU_ROOM_TOKEN`.
-   O token é salvo no `localStorage` e removido da URL. Depois basta abrir `/controle`.
-2. Sem token: a tela pede para colar o token. Token recusado: a conexão fecha e o status indica;
-   confira o `ROOM_TOKEN` no Render.
+Sem copiar token: no app do PC abra **Conexão** e mostre o código de 6
+dígitos (ou o QR). No celular, abra `/controle` → **🔗 Conexão** e digite o
+código ou escaneie o QR. O celular mostra **CONECTADO** e o vínculo fica
+salvo (reabre sozinho). **Encerrar conexão** termina só aquele celular;
+**Sair** no PC fecha o app e avisa os celulares (DESCONECTADO na hora).
+Detalhes em `apps/desktop/README.md`.
+
+Modo legado com token manual: primeira abertura
+`https://seu-app.vercel.app/controle?k=SEU_ROOM_TOKEN` (salvo no
+`localStorage`); sem token a tela pede para colar. Token recusado: confira o
+`ROOM_TOKEN` no Render.
 3. **Instalar como PWA:** no Android (Chrome) menu ⋮ → "Adicionar à tela inicial"/"Instalar";
    no iPhone (Safari) Compartilhar → "Adicionar à Tela de Início". Abre sem barra do navegador.
    (Os ícones `icon-192/512.png` são placeholders de 1 px — substitua por PNGs 192×192 e 512×512 com a sua marca.)

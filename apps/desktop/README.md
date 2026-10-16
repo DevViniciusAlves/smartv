@@ -133,53 +133,43 @@ Na Vercel a instalação é completa (`npm install`): o build web precisa das
 Rollup quebra o install no Windows); o binário do Electron baixa só em
 builds frios, depois vale o cache da Vercel.
 
-## Controle pelo celular (agente embutido, sem processo separado)
+## Controle pelo celular (pareamento por código + QR)
 
-O app instalado **é ele mesmo o dispositivo controlável**: ao abrir, ele
-conecta ao Render como `role: "agent"` (ver `src/remote-agent.ts`) e executa
-os comandos nativamente (`src/command-runner.ts`):
+Sem configurar URL nem copiar token no celular. Fluxo:
 
-```
-Celular /controle → wss://…/ws (Render, valida ROOM_TOKEN)
-  → app SmartTV no PC (valida AGENT_TOKEN, executa e responde estado)
-```
+1. No app, clique em **Conexão** (barra superior): o modal mostra um **código
+   de 6 dígitos** + **QR Code**, o contador de validade (5 min), o estado
+   (`CONECTADO`/`CONECTANDO`/`DESCONECTADO`) e quantos celulares estão
+   vinculados. O código **renova sozinho a cada 30 s**; **Gerar novo código**
+   invalida o anterior na hora. Fechar o modal **não** desconecta.
+2. No celular, abra `/controle` → **🔗 Conexão** → **digite os 6 dígitos** ou
+   **escaneie o QR** (pede a câmera; sem câmera/HTTPS, digite o código).
+3. Pareado: o celular mostra **CONECTADO** e controla o PC. O vínculo fica
+   salvo — reabrir o `/controle` reconecta sozinho, sem parear de novo.
+4. **Encerrar conexão** (no modal do celular, com confirmação) termina só
+   aquele vínculo; o PC e os outros celulares continuam. Para controlar de
+   novo, pareie com outro código.
+5. **Sair** (barra do app, com confirmação) avisa o servidor, derruba o
+   vínculo e **fecha o app por completo** — não resta agente em segundo plano.
 
-| Comando | Execução no app |
+Detalhes técnicos: o código é temporário (uso único, 5 min, vinculado ao ID
+desta instalação em `%AppData%/SmartTV/smartv-installation.json`); a troca
+gera um token aleatório de sessão por celular, validado no servidor a cada
+reconexão; tentativas de adivinhar são limitadas (10/min por conexão);
+QR e erros nunca contêm tokens permanentes. Configuração do servidor continua
+em **Conexão → Configuração avançada** (ou env/CLI), uma única vez.
+
+| Comando do celular | Execução no app |
 |---|---|
 | setas/Enter, play/pause, ±10 s, `f`, Próximo, texto, backspace/enter | `sendInputEvent` na view focada (Home ou serviço) |
-| `back`, `home` | volta à Home local (sem depender de `Alt+Left`/foco) |
-| `app` (4 atalhos) | navega a view de serviço (allowlist de sempre, sem CDP/flag) |
-| volume, mouse, power | sistema via PowerShell (`user32.dll`), igual ao agente standalone |
-
-**Configuração (uma vez, no PC da TV):** abra o app, clique em
-**⚙ Controle** na barra superior e salve:
-- Servidor: `wss://seu-servico.onrender.com/ws` (mesmo `VITE_BACKEND_URL` da Vercel)
-- Token do PC: o mesmo `AGENT_TOKEN` do Render.
-
-O status aparece na barra (`Controle: online / conectando… / token inválido /
-não configurado`). Também aceita provisionamento sem UI:
-`--smartv-backend=<url> --smartv-agent-token=<token>`, env
-`SMARTV_BACKEND_URL`/`SMARTV_AGENT_TOKEN` (ou `BACKEND_URL`/`AGENT_TOKEN`),
-ou o arquivo `%AppData%/SmartTV/smartv-remote.json`. Para desligar o
-embutido (modo Edge legado): `--smartv-remote-off`.
+| `back`, `home` | volta à Home local |
+| `app` (atalhos) | navega a view de serviço (allowlist, sem CDP/flag) |
+| volume, mouse, power | sistema via PowerShell (`user32.dll`) |
 
 **Importante — um agente por vez:** o servidor mantém 1 agente (o mais novo
-substitui o anterior, código 4400). Com o app configurado, **não rode
+substitui o anterior, código 4400). Com o app linkado, **não rode
 `apps/agent` com o mesmo `AGENT_TOKEN`** (pare o Task Scheduler /
-`uninstall-startup.ps1`), senão os dois ficam se derrubando. O status
-`Controle: outro agente assumiu a sala` indica exatamente isso.
-
-**Diagnóstico da cadeia:** `/controle` mostra `PC offline` distinto de erro
-de servidor/token; comandos com PC offline são bloqueados no celular com
-`PC offline — comando não enviado`; a página `/diag` (passo 5) confirma se o
-PC está online; o Render loga `hello_ok/agent_online/agent_offline` sem
-tokens. Agentes nativos (Node/Electron via `ws`) não enviam `Origin`: o
-servidor aceita ausência de `Origin` (navegadores sempre enviam) e mantém a
-autenticação por token — sem isso, o agente de produção era recusado com
-4403 mesmo com o token certo.
-
-Modo legado (Edge via CDP) continua documentado abaixo para quem usa
-`apps/agent` sem este app.
+`uninstall-startup.ps1`), senão os dois ficam se derrubando.
 
 ### Alternativa legada: agente standalone via CDP (só se precisar do Edge)
 

@@ -1,11 +1,13 @@
 // Persistent remote config: %AppData%/SmartTV/smartv-remote.json
 // (app.getPath("userData")). Only backend URL + agent token. No logs here
 // ever include the token (use maskToken for display).
+import { randomUUID } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { StoredRemoteConfig } from "./remote-config.js";
 
 const FILE_NAME = "smartv-remote.json";
+const INSTALL_FILE_NAME = "smartv-installation.json";
 
 export function remoteConfigPath(userDataPath: string): string {
   return join(userDataPath, FILE_NAME);
@@ -35,4 +37,30 @@ export function saveStoredRemoteConfig(userDataPath: string, cfg: StoredRemoteCo
     ),
     "utf8",
   );
+}
+
+/**
+ * Stable installation id for this PC (created once, persisted). Sent as
+ * `deviceId` in the agent hello so pairing codes bind to THIS installation
+ * and a phone can never take over a different PC by guessing a code.
+ */
+export function getOrCreateInstallationId(userDataPath: string): string {
+  const file = join(userDataPath, INSTALL_FILE_NAME);
+  try {
+    const raw = readFileSync(file, "utf8");
+    const parsed = JSON.parse(raw) as { installationId?: unknown };
+    if (typeof parsed.installationId === "string" && parsed.installationId.length >= 8) {
+      return parsed.installationId;
+    }
+  } catch {
+    /* missing/corrupt: create fresh below */
+  }
+  const installationId = randomUUID();
+  try {
+    mkdirSync(userDataPath, { recursive: true });
+    writeFileSync(file, JSON.stringify({ installationId }, null, 2), "utf8");
+  } catch {
+    /* non-fatal: pairing still works with an ephemeral id for this run */
+  }
+  return installationId;
 }

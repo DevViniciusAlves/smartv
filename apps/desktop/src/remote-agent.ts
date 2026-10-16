@@ -18,17 +18,32 @@
 //
 // Transport is injected (default: `ws`) so tests run without a network.
 
-import { controllerMessageSchema, describeClose } from "@smartv/shared";
+import WebSocket from "ws";
+import {
+  controllerMessageSchema,
+  pairCodeSchema,
+  presenceSchema,
+  describeClose,
+} from "@smartv/shared";
 import type { ControllerMessage } from "@smartv/shared";
 
 export interface RemoteAgentConfig {
   backendUrl: string;
   agentToken: string;
+  /** Stable installation id (persisted in userData). Binds pairing codes. */
+  deviceId?: string;
+}
+
+export interface PairCodeInfo {
+  code: string;
+  expiresAt: number;
 }
 
 export interface RemoteAgentEvents {
   onStatus(text: string): void;
   onCommand(msg: ControllerMessage): void;
+  onPairCode?(info: PairCodeInfo): void;
+  onPresence?(controllers: number): void;
   onLog?(line: string): void;
 }
 
@@ -71,6 +86,17 @@ export class EmbeddedAgent {
     if (!this.stopped) this.connect();
   }
 
+  /** Asks the server for a fresh pairing code (invalidates the previous). */
+  requestPairCode(): boolean {
+    if (!this.ws) return false;
+    try {
+      this.ws.send(JSON.stringify({ type: "pair-code-request" }));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   stop(): void {
     this.stopped = true;
     if (this.timer) {
@@ -111,10 +137,19 @@ export class EmbeddedAgent {
     }
     this.ws = ws;
     const token = cfg.agentToken;
+    const deviceId = cfg.deviceId;
     ws.on("open", (() => {
       this.attempt = 0;
       try {
-        ws.send(JSON.stringify({ type: "hello", role: "agent", token, v: 1 }));
+        ws.send(
+          JSON.stringify({
+            type: "hello",
+            role: "agent",
+            token,
+            v: 1,
+            ...(deviceId ? { deviceId } : {}),
+          }),
+        );
       } catch {
         /* noop */
       }
@@ -127,6 +162,26 @@ export class EmbeddedAgent {
       try {
         msg = JSON.parse(String(data));
       } catch {
+        return;
+      }
+      // Server-to-agent service messages (pairing/presence) are handled
+      // before the command whitelist.
+      if (pairCodeSchema.safeParse(msg).success) {
+        const info = msg as PairCodeInfo;
+        this.log(`[remote] pair code received (expires ${new Date(info.expiresAt).toISOString()})`);
+        try {
+          this.events.onPairCode?.(info);
+        } catch {
+          /* noop */
+        }
+        return;
+      }
+      if (presenceSchema.safeParse(msg).success) {
+        try {
+          this.events.onPresence?.((msg as { controllers: number }).controllers);
+        } catch {
+          /* noop */
+        }
         return;
       }
       const parsed = controllerMessageSchema.safeParse(msg);
@@ -226,9 +281,5 @@ function unrefTimer(t: unknown): void {
 }
 
 function defaultCreateWs(url: string): WsLike {
-  // Lazy require keeps unit tests (which inject a fake) free of the `ws`
-  // package, and works in the packaged app where `ws` is a runtime dep.
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const Ws = require("ws") as new (url: string) => WsLike;
-  return new Ws(url);
+  return new WebSocket(url) as unknown as WsLike;
 }

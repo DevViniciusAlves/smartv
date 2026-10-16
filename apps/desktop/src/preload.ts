@@ -9,6 +9,18 @@ export interface RemoteInfo {
   enabled: boolean;
   status: string;
   source: string;
+  link: "DESCONECTADO" | "CONECTANDO" | "CONECTADO";
+  linkedPhones: number;
+}
+
+export interface PairCodeInfo {
+  code: string;
+  expiresAt: number;
+}
+
+export interface RemoteLinkInfo {
+  link: RemoteInfo["link"];
+  linkedPhones: number;
 }
 
 export interface SmartvApi {
@@ -19,6 +31,10 @@ export interface SmartvApi {
   getRemote(): Promise<RemoteInfo>;
   setRemote(cfg: { backendUrl: string; agentToken: string }): Promise<{ ok: boolean; error?: string; status?: string }>;
   onRemoteStatus(cb: (text: string) => void): () => void;
+  onRemoteLink(cb: (info: RemoteLinkInfo) => void): () => void;
+  requestPairCode(): Promise<{ ok: boolean }>;
+  onPairCode(cb: (info: PairCodeInfo) => void): () => void;
+  quit(): Promise<void>;
 }
 
 const api: SmartvApi = {
@@ -38,6 +54,18 @@ const api: SmartvApi = {
     ipcRenderer.on("smartv:remote-status", listener);
     return () => ipcRenderer.removeListener("smartv:remote-status", listener);
   },
+  onRemoteLink: (cb: (info: RemoteLinkInfo) => void) => {
+    const listener = (_e: unknown, info: RemoteLinkInfo): void => cb(info);
+    ipcRenderer.on("smartv:remote-link", listener);
+    return () => ipcRenderer.removeListener("smartv:remote-link", listener);
+  },
+  requestPairCode: () => ipcRenderer.invoke("smartv:pair-code-request"),
+  onPairCode: (cb: (info: PairCodeInfo) => void) => {
+    const listener = (_e: unknown, info: PairCodeInfo): void => cb(info);
+    ipcRenderer.on("smartv:pair-code", listener);
+    return () => ipcRenderer.removeListener("smartv:pair-code", listener);
+  },
+  quit: () => ipcRenderer.invoke("smartv:quit"),
 };
 
 contextBridge.exposeInMainWorld("smartv", api);

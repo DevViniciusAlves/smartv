@@ -1,10 +1,21 @@
 import { STREAMING_APPS } from "@smartv/shared";
 import type { ControllerMessage } from "@smartv/shared";
 import { normalizeBackendUrl, RemoteConnection, type ConnStatus } from "./connection.js";
+import {
+  isValidPairCode,
+  parseBinding,
+  parseQrPayload,
+  pairFailureMessage,
+  toLinkState,
+  PairingSession,
+  type PairBinding,
+  type PairFailure,
+} from "./pairing.js";
 
 const RAW_BACKEND_URL: string =
   (import.meta as unknown as { env: Record<string, string> }).env?.VITE_BACKEND_URL ?? "";
 const TOKEN_KEY = "smartv_token";
+const PAIR_KEY = "smartv_pair";
 
 const statusEl = document.getElementById("status") as HTMLElement;
 const subEl = document.getElementById("substatus") as HTMLElement;
@@ -14,11 +25,22 @@ const tokenPanel = document.getElementById("tokenPanel") as HTMLElement;
 const tokenMsg = document.getElementById("tokenMsg") as HTMLElement;
 const tokenInput = document.getElementById("tokenInput") as HTMLInputElement;
 
+// ---- credentials: pair binding (new) wins, legacy ROOM_TOKEN still works ----
+
+function getPairBinding(): PairBinding | null {
+  return parseBinding(localStorage.getItem(PAIR_KEY));
+}
+
 function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
 }
 
-// Token via ?k=TOKEN na primeira abertura: salva e limpa a URL.
+/** Whatever authenticates this phone: pair session token or legacy token. */
+function getCredential(): string | null {
+  return getPairBinding()?.token ?? getToken();
+}
+
+// Legacy token via ?k=TOKEN na primeira abertura: salva e limpa a URL.
 {
   const q = new URLSearchParams(location.search).get("k");
   if (q?.trim()) localStorage.setItem(TOKEN_KEY, q.trim());
@@ -45,44 +67,60 @@ function paint(color: "yellow" | "green" | "orange" | "red", text: string, sub =
   }
 }
 
+// Tri-state pill shared with the PC modal: CONECTADO requires the phone
+// credential AND the PC actually online. A bare server link is never shown
+// as connected.
 function renderStatus(s: ConnStatus): void {
   errorPanel.classList.add("hidden");
-  switch (s.name) {
-    case "loading":
-      paint("yellow", "Carregando…");
-      // Cold start do plano gratuito pode levar até ~1 min.
+  const link = toLinkState(s, getCredential() !== null);
+  if (pairingBusy) {
+    paint("yellow", "CONECTANDO", "Pareando com o SmarTV…");
+    return;
+  }
+  switch (link.name) {
+    case "CONECTANDO":
+      paint("yellow", "CONECTANDO");
       subTimer = window.setTimeout(() => {
         if (conn?.current.name === "loading") {
           subEl.textContent = "O servidor gratuito pode levar até 1 minuto para acordar";
         }
       }, 5000);
       break;
-    case "connected":
-      if (s.agentOnline) paint("green", "Conectado");
-      else paint("orange", "Conectado ao servidor, PC offline");
+    case "CONECTADO":
+      paint("green", "CONECTADO");
       break;
-    case "error":
-      if (s.kind === "auth") {
-        paint("red", "Erro: token inválido");
-        openTokenPanel("Token inválido, digite de novo.");
-      } else if (s.kind === "origin") {
-        paint("red", "Erro: origem não permitida");
-        errorText.textContent =
-          `O servidor recusou esta origem: ${location.origin}. ` +
-          `Coloque exatamente isto em ALLOWED_ORIGINS no Render.`;
-        errorPanel.classList.remove("hidden");
-      } else if (s.kind === "config") {
-        paint("red", "Erro: servidor não configurado");
-        errorText.textContent = "Falta VITE_BACKEND_URL no deploy da Vercel. Faça o redeploy após configurar.";
-        errorPanel.classList.remove("hidden");
+    case "DESCONECTADO":
+      if (link.reason === "sem-pareamento") {
+        paint("yellow", "DESCONECTADO", "Toque em 🔗 Conexão para parear com o PC");
+      } else if (link.reason === "pc-offline") {
+        paint("orange", "DESCONECTADO", "PC offline — abra o SmarTV no PC");
+      } else       if (link.reason === "token") {
+        if (s.name === "error" && s.kind === "auth") {
+          if (getPairBinding()) {
+            paint("red", "DESCONECTADO", "Sessão inválida — pareie de novo em 🔗 Conexão");
+          } else {
+            paint("red", "DESCONECTADO", "Token inválido");
+            openTokenPanel("Token inválido, digite de novo.");
+          }
+        } else if (s.name === "error" && s.kind === "origin") {
+          paint("red", "Erro: origem não permitida");
+          errorText.textContent =
+            `O servidor recusou esta origem: ${location.origin}. ` +
+            `Coloque exatamente isto em ALLOWED_ORIGINS no Render.`;
+          errorPanel.classList.remove("hidden");
+        } else {
+          paint("red", "DESCONECTADO", "Configuração inválida — confira o servidor");
+          errorText.textContent = "Falta VITE_BACKEND_URL no deploy da Vercel. Faça o redeploy após configurar.";
+          errorPanel.classList.remove("hidden");
+        }
       } else {
-        paint("red", "Erro: não consegui conectar ao servidor");
-        subEl.textContent = "";
+        paint("red", "DESCONECTADO", "Sem conexão — verifique a internet");
         errorPanel.classList.remove("hidden");
         errorText.textContent = "Verifique a internet e o backend no Render.";
       }
       break;
   }
+  paintConnPill(link.name);
 }
 
 function flashStatus(): void {
@@ -93,20 +131,28 @@ function flashStatus(): void {
 const { url: BACKEND_URL, notes } = normalizeBackendUrl(RAW_BACKEND_URL);
 if (notes.includes("invalid")) {
   // Configuração quebrada: não tenta conectar.
-  paint("red", "Erro: servidor não configurado");
+  paint("red", "DESCONECTADO", "Servidor não configurado");
 }
 
 let conn: RemoteConnection | null = null;
+let pairingBusy = false;
+
+function isConnected(): boolean {
+  const st = conn?.current;
+  return !!st && st.name === "connected" && st.agentOnline === true;
+}
 
 function send(msg: ControllerMessage): void {
   buzz();
-  // Real state: the socket can be open (server reachable) while the PC app
-  // is offline. Sending then would silently drop the command on the server,
-  // so block it here with a useful message instead of faking "connected".
-  const st = conn?.current;
-  if (st && st.name === "connected" && st.agentOnline === false) {
+  // Encerra o envio imediatamente quando não há controle real: sem vínculo
+  // ou PC offline. Nunca finge "conectado".
+  if (!isConnected()) {
     flashStatus();
-    subEl.textContent = "PC offline — comando não enviado. Ligue o app SmartTV no PC.";
+    const st = conn?.current;
+    subEl.textContent =
+      st && st.name === "connected"
+        ? "PC offline — comando não enviado. Ligue o app SmartTV no PC."
+        : "Sem conexão — pareie em 🔗 Conexão.";
     return;
   }
   conn?.send(msg);
@@ -124,20 +170,21 @@ function startConnection(): void {
     renderStatus({ name: "error", kind: "config", autoRetry: false });
     return;
   }
-  if (!getToken()) {
-    tokenPanel.classList.remove("hidden");
-    paint("yellow", "Sem token — digite abaixo");
+  const credential = getCredential();
+  if (!credential) {
+    paint("yellow", "DESCONECTADO", "Toque em 🔗 Conexão para parear com o PC");
+    paintConnPill("DESCONECTADO");
     return;
   }
   conn?.dispose();
-  conn = new RemoteConnection(BACKEND_URL, getToken, {
+  conn = new RemoteConnection(BACKEND_URL, () => getCredential(), {
     onStatus: renderStatus,
     onSendBlocked: flashStatus,
   });
   conn.connect();
 }
 
-// Painel de token (engrenagem): editável a qualquer hora.
+// Painel de token legado (engrenagem): mantido como avançado.
 function openTokenPanel(msg = ""): void {
   tokenMsg.textContent = msg;
   tokenInput.value = "";
@@ -164,11 +211,204 @@ function openTokenPanel(msg = ""): void {
   conn = null;
   tokenMsg.textContent = "";
   tokenPanel.classList.remove("hidden");
-  paint("yellow", "Sem token — digite abaixo");
+  paint("yellow", "DESCONECTADO", "Toque em 🔗 Conexão para parear com o PC");
 });
 (document.getElementById("btnRetry") as HTMLElement).addEventListener("click", () => {
   if (conn) conn.reconnect();
   else startConnection();
+});
+
+// ---- Conexão modal: parear por código ou QR, encerrar vínculo ----
+
+const connModal = document.getElementById("connModal") as HTMLElement;
+const connPill = document.getElementById("connPill") as HTMLElement;
+const connMsg = document.getElementById("connMsg") as HTMLElement;
+const pairInput = document.getElementById("pairInput") as HTMLInputElement;
+const scanVideo = document.getElementById("scanVideo") as HTMLVideoElement;
+
+function paintConnPill(link: "CONECTADO" | "CONECTANDO" | "DESCONECTADO"): void {
+  connPill.textContent = link;
+  connPill.className = `status ${link === "CONECTADO" ? "st-green" : link === "CONECTANDO" ? "st-yellow" : "st-red"}`;
+}
+
+function setConnMsg(text: string): void {
+  connMsg.textContent = text;
+}
+
+function openConn(): void {
+  connModal.classList.remove("hidden");
+  setConnMsg("");
+  pairInput.value = "";
+  showTab("code");
+  refreshConnPill();
+}
+
+function closeConn(): void {
+  stopScan();
+  connModal.classList.add("hidden");
+}
+
+function refreshConnPill(): void {
+  paintConnPill(toLinkState(conn?.current ?? null, getCredential() !== null).name);
+}
+
+function showTab(which: "code" | "scan"): void {
+  (document.getElementById("tabCode") as HTMLElement).classList.toggle("active", which === "code");
+  (document.getElementById("tabScan") as HTMLElement).classList.toggle("active", which === "scan");
+  (document.getElementById("paneCode") as HTMLElement).classList.toggle("hidden", which !== "code");
+  (document.getElementById("paneScan") as HTMLElement).classList.toggle("hidden", which !== "scan");
+  if (which !== "scan") stopScan();
+}
+
+(document.getElementById("btnConn") as HTMLElement).addEventListener("click", () => {
+  if (connModal.classList.contains("hidden")) openConn();
+  else closeConn();
+});
+(document.getElementById("connClose") as HTMLElement).addEventListener("click", closeConn);
+(document.getElementById("tabCode") as HTMLElement).addEventListener("click", () => showTab("code"));
+(document.getElementById("tabScan") as HTMLElement).addEventListener("click", () => showTab("scan"));
+
+async function doPair(code: string): Promise<void> {
+  const clean = code.trim();
+  if (!isValidPairCode(clean)) {
+    setConnMsg("Digite os 6 dígitos mostrados no PC.");
+    return;
+  }
+  if (!BACKEND_URL) {
+    setConnMsg("Servidor não configurado neste /controle. Confira o deploy da Vercel.");
+    return;
+  }
+  pairingBusy = true;
+  paint("yellow", "CONECTANDO", "Pareando com o SmarTV…");
+  paintConnPill("CONECTANDO");
+  setConnMsg("Conectando…");
+  const session = new PairingSession(BACKEND_URL);
+  try {
+    const res = await session.pair(clean);
+    localStorage.setItem(PAIR_KEY, JSON.stringify({ token: res.token, deviceId: res.deviceId }));
+    setConnMsg("");
+    pairingBusy = false;
+    startConnection();
+    closeConn();
+  } catch (e) {
+    pairingBusy = false;
+    setConnMsg(pairFailureMessage(e as PairFailure));
+    refreshAfterPairFail();
+  }
+}
+
+function refreshAfterPairFail(): void {
+  if (conn) conn.reconnect();
+  else startConnection();
+}
+
+(document.getElementById("pairGo") as HTMLElement).addEventListener("click", () => void doPair(pairInput.value));
+pairInput.addEventListener("keydown", (e: KeyboardEvent) => {
+  if (e.key === "Enter") void doPair(pairInput.value);
+});
+
+// ---- QR scan (BarcodeDetector + câmera; manual continua funcionando) ----
+
+let scanGen = 0;
+let scanStream: MediaStream | null = null;
+
+interface DetectorLike {
+  detect(video: HTMLVideoElement): Promise<Array<{ rawValue?: string }>>;
+}
+
+function stopScan(): void {
+  scanGen += 1;
+  if (scanStream) {
+    try {
+      scanStream.getTracks().forEach((t) => t.stop());
+    } catch {
+      /* noop */
+    }
+    scanStream = null;
+  }
+  scanVideo.classList.add("hidden");
+  (document.getElementById("scanStop") as HTMLElement).classList.add("hidden");
+}
+
+async function startScan(): Promise<void> {
+  setConnMsg("");
+  if (location.protocol !== "https:" && location.hostname !== "localhost" && location.hostname !== "127.0.0.1") {
+    setConnMsg("A câmera exige HTTPS. Digite o código manualmente.");
+    return;
+  }
+  const Detector = (window as unknown as { BarcodeDetector?: new (opts: { formats: string[] }) => DetectorLike }).BarcodeDetector;
+  if (!Detector) {
+    setConnMsg("Leitura de QR não suportada neste navegador — digite o código.");
+    return;
+  }
+  if (!navigator.mediaDevices?.getUserMedia) {
+    setConnMsg("Câmera indisponível — digite o código.");
+    return;
+  }
+  const gen = scanGen + 1;
+  scanGen = gen;
+  try {
+    scanStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "environment" },
+      audio: false,
+    });
+  } catch {
+    if (gen !== scanGen) return;
+    setConnMsg("Permissão de câmera negada — permita o acesso ou digite o código.");
+    return;
+  }
+  if (gen !== scanGen) return;
+  scanVideo.srcObject = scanStream;
+  scanVideo.classList.remove("hidden");
+  (document.getElementById("scanStop") as HTMLElement).classList.remove("hidden");
+  try {
+    await scanVideo.play();
+  } catch {
+    /* autoplay bloqueado: o usuário toca no vídeo */
+  }
+  const detector = new Detector({ formats: ["qr_code"] });
+  const loop = async (): Promise<void> => {
+    if (gen !== scanGen) return;
+    try {
+      const found = await detector.detect(scanVideo);
+      const raw = found?.[0]?.rawValue ?? "";
+      const code = raw ? parseQrPayload(raw) : null;
+      if (code) {
+        stopScan();
+        await doPair(code);
+        return;
+      }
+    } catch {
+      /* frame ilegível: tenta o próximo */
+    }
+    window.setTimeout(() => void loop(), 400);
+  };
+  void loop();
+}
+
+(document.getElementById("scanStart") as HTMLElement).addEventListener("click", () => void startScan());
+(document.getElementById("scanStop") as HTMLElement).addEventListener("click", stopScan);
+
+// ---- Encerrar conexão: só ESTA sessão; o PC continua ligado ----
+
+(document.getElementById("connEnd") as HTMLElement).addEventListener("click", () => {
+  if (!getPairBinding() && !getCredential()) {
+    setConnMsg("Nenhuma conexão ativa.");
+    return;
+  }
+  if (!confirm("Encerrar a conexão com o SmarTV?\n\nO PC continua ligado; outros celulares não são afetados.")) {
+    return;
+  }
+  // Avisa o backend para invalidar este vínculo (fire-and-forget)...
+  conn?.sendRaw({ type: "unpair" });
+  // ...e derruba na hora do lado do celular: sem espera de rede.
+  conn?.dispose();
+  conn = null;
+  localStorage.removeItem(PAIR_KEY);
+  pairingBusy = false;
+  paint("yellow", "DESCONECTADO", "Conexão encerrada — pareie de novo em 🔗 Conexão");
+  paintConnPill("DESCONECTADO");
+  setConnMsg("Conexão encerrada. Para controlar de novo, pareie com outro código.");
 });
 
 // Renderiza botões de apps a partir da config compartilhada.
@@ -336,11 +576,11 @@ document.querySelectorAll<HTMLElement>("[data-hold]").forEach((el) => {
 }
 
 // Ao voltar do segundo plano (iOS inclusive): recria a conexão, sem confiar
-// no readyState do socket antigo.
+// no readyState do socket antigo. Sem credencial, não há o que reconectar.
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") {
-    if (conn) conn.reconnect();
-    else startConnection();
+    if (conn && getCredential()) conn.reconnect();
+    else if (getCredential()) startConnection();
   }
   if (document.visibilityState === "visible") void lockScreen();
 });

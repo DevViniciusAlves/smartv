@@ -40,3 +40,11 @@ body {
 .errText { font-size: 0.85rem; opacity: 0.9; overflow-wrap: anywhere; }
 .btn.link { display: flex; align-items: center; justify-content: center; text-decoration: none; }
 .btn.slim { flex: 0 0 56px; }
+.modal { position: fixed; inset: 0; z-index: 50; margin: auto; max-width: 480px; max-height: 92vh; overflow: auto; border: 1px solid #2c3a52; }
+.mHead { display: flex; align-items: center; justify-content: space-between; }
+.hint { font-size: 0.85rem; opacity: 0.8; margin: 0; }
+.tabs .tab { opacity: 0.6; }
+.tabs .tab.active { opacity: 1; background: #2e4a7a; }
+#pairInput { text-align: center; font-size: 1.6rem; letter-spacing: 0.3em; font-weight: 800; }
+.scan { width: 100%; border-radius: 14px; background: #000; max-height: 300px; }
+.row.between { justify-content: space-between; }

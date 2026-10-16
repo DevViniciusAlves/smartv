@@ -67,6 +67,39 @@ describe("EmbeddedAgent", () => {
     agent.stop();
   });
 
+  it("relays pair-code and presence to the UI, and can request codes", () => {
+    const sockets: Array<ReturnType<typeof fakeWs>> = [];
+    const codes: unknown[] = [];
+    const presence: number[] = [];
+    const agent = new EmbeddedAgent(
+      () => ({ backendUrl: "wss://srv/ws", agentToken: "tok", deviceId: "pc-1" }),
+      {
+        onStatus: () => undefined,
+        onCommand: () => undefined,
+        onPairCode: (c) => void codes.push(c),
+        onPresence: (n) => void presence.push(n),
+      },
+      () => {
+        const f = fakeWs();
+        sockets.push(f);
+        return f;
+      },
+    );
+    agent.start();
+    sockets[0].handlers.open();
+    const hello = JSON.parse(sockets[0].sent[0]) as Record<string, unknown>;
+    expect(hello).toMatchObject({ type: "hello", role: "agent", deviceId: "pc-1" });
+    expect(agent.requestPairCode()).toBe(true);
+    expect(JSON.parse(sockets[0].sent[1])).toEqual({ type: "pair-code-request" });
+    sockets[0].handlers.message(
+      JSON.stringify({ type: "pair-code", code: "123456", expiresAt: 999 }) as never,
+    );
+    sockets[0].handlers.message(JSON.stringify({ type: "presence", controllers: 2 }) as never);
+    expect(codes).toEqual([{ type: "pair-code", code: "123456", expiresAt: 999 }]);
+    expect(presence).toEqual([2]);
+    agent.stop();
+  });
+
   it("parks on 4401 without reconnecting", () => {
     vi.useFakeTimers();
     try {

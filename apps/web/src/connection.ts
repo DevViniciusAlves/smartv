@@ -216,6 +216,19 @@ export class RemoteConnection {
     return false;
   }
 
+  /** Fire-and-forget session control (e.g. `unpair`): not a command. */
+  sendRaw(payload: unknown): boolean {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      try {
+        this.ws.send(JSON.stringify(payload));
+        return true;
+      } catch {
+        return false;
+      }
+    }
+    return false;
+  }
+
   dispose(): void {
     this.generation += 1;
     if (this.timer !== null) {

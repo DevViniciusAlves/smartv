@@ -20,7 +20,7 @@ import {
   resolveRemoteConfig,
   maskToken,
 } from "./remote-config.js";
-import { loadStoredRemoteConfig, saveStoredRemoteConfig } from "./remote-store.js";
+import { loadStoredRemoteConfig, saveStoredRemoteConfig, getOrCreateInstallationId } from "./remote-store.js";
 import { EmbeddedAgent } from "./remote-agent.js";
 import { describeAction, systemScriptFor } from "./command-runner.js";
 
@@ -52,6 +52,11 @@ let lastSurface: Surface | null = null;
 // would fight over the room: the server keeps only the newest agent).
 let remoteAgent: EmbeddedAgent | null = null;
 let remoteStatusText = "Controle: não configurado";
+// Tri-state link for the Conexão modal (shared vocabulary with /controle).
+// DESCONECTADO: no link. CONECTANDO: socket opening/hello. CONECTADO: the
+// server accepted us as agent (phone pairing is counted separately below).
+let remoteLink: "DESCONECTADO" | "CONECTANDO" | "CONECTADO" = "DESCONECTADO";
+let linkedPhones = 0;
 
 function pushRemoteStatus(text: string): void {
   remoteStatusText = text;
@@ -60,6 +65,22 @@ function pushRemoteStatus(text: string): void {
   console.log(`[smartv-remote] ${text}`);
   barView?.webContents.send("smartv:remote-status", text);
   homeView?.webContents.send("smartv:remote-status", text);
+}
+
+function pushRemoteLink(): void {
+  const payload = { link: remoteLink, linkedPhones };
+  barView?.webContents.send("smartv:remote-link", payload);
+  homeView?.webContents.send("smartv:remote-link", payload);
+}
+
+function setRemoteLink(link: typeof remoteLink): void {
+  remoteLink = link;
+  pushRemoteLink();
+}
+
+function pushPairCode(info: { code: string; expiresAt: number }): void {
+  barView?.webContents.send("smartv:pair-code", info);
+  homeView?.webContents.send("smartv:pair-code", info);
 }
 
 function runPowerShell(script: string): Promise<void> {
@@ -126,12 +147,16 @@ function runRemoteCommand(msg: ControllerMessage): void {
   void runPowerShell(script);
 }
 
-function currentRemoteConfig(): { backendUrl: string; agentToken: string } | null {
+function currentRemoteConfig(): { backendUrl: string; agentToken: string; deviceId: string } | null {
   try {
     const stored = loadStoredRemoteConfig(app.getPath("userData"));
     const resolved = resolveRemoteConfig(process.argv, process.env, stored);
     if (!resolved.enabled) return null;
-    return { backendUrl: resolved.backendUrl, agentToken: resolved.agentToken };
+    return {
+      backendUrl: resolved.backendUrl,
+      agentToken: resolved.agentToken,
+      deviceId: getOrCreateInstallationId(app.getPath("userData")),
+    };
   } catch {
     return null;
   }
@@ -140,17 +165,53 @@ function currentRemoteConfig(): { backendUrl: string; agentToken: string } | nul
 function startEmbeddedAgent(): void {
   if (remoteAgent) return;
   remoteAgent = new EmbeddedAgent(currentRemoteConfig, {
-    onStatus: pushRemoteStatus,
+    onStatus: (text) => {
+      pushRemoteStatus(text);
+      // Derive the tri-state link from the status line the agent reports.
+      if (text.startsWith("Controle: online")) setRemoteLink("CONECTADO");
+      else if (text.startsWith("Controle: conectando")) setRemoteLink("CONECTANDO");
+      else if (text.startsWith("Controle: reconectando")) setRemoteLink("CONECTANDO");
+      else if (text.startsWith("Controle: não configurado")) setRemoteLink("DESCONECTADO");
+      else if (text.includes("token inválido") || text.includes("origem recusada")) {
+        setRemoteLink("DESCONECTADO");
+      } else if (text.includes("outro agente assumiu")) {
+        // Kicked by a duplicate agent: link is down until backoff reconnects.
+        setRemoteLink("CONECTANDO");
+      }
+    },
     onCommand: runRemoteCommand,
+    onPairCode: pushPairCode,
+    onPresence: (n) => {
+      linkedPhones = n;
+      pushRemoteLink();
+      console.log(`[smartv-remote] linked phones: ${n}`);
+    },
     onLog: (line) => console.log(line),
   });
-  remoteAgent.start();
   const cfg = currentRemoteConfig();
   if (cfg) {
+    setRemoteLink("CONECTANDO");
     console.log(`[smartv-remote] configured (source ok, token ${maskToken(cfg.agentToken)})`);
   } else {
+    setRemoteLink("DESCONECTADO");
     console.log("[smartv-remote] not configured: set server + token in the ⚙ Controle panel");
   }
+  remoteAgent.start();
+}
+
+/** Graceful exit for "Sair do SmarTV": closes the server link (the backend
+ *  immediately marks the PC offline for the phones), frees resources, quits.
+ *  Never touches foreign processes: only this app's own agent is stopped. */
+function quitAppGracefully(): void {
+  console.log("[smartv] sair: closing remote link and quitting");
+  try {
+    remoteAgent?.stop();
+  } catch {
+    /* noop */
+  }
+  remoteAgent = null;
+  setRemoteLink("DESCONECTADO");
+  app.quit();
 }
 
 const COMMON_WEB_PREFS = {
@@ -402,6 +463,8 @@ function registerIpc(): void {
       enabled: resolved.enabled,
       status: remoteStatusText,
       source: resolved.source,
+      link: remoteLink,
+      linkedPhones,
     };
   });
   ipcMain.handle("smartv:set-remote", (_e, payload: unknown) => {
@@ -418,6 +481,13 @@ function registerIpc(): void {
     saveStoredRemoteConfig(app.getPath("userData"), { backendUrl, agentToken });
     remoteAgent?.reconnect();
     return { ok: true, status: remoteStatusText };
+  });
+  ipcMain.handle("smartv:pair-code-request", () => {
+    const ok = remoteAgent?.requestPairCode() ?? false;
+    return { ok };
+  });
+  ipcMain.handle("smartv:quit", () => {
+    quitAppGracefully();
   });
 }
 

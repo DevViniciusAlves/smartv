@@ -16,6 +16,7 @@
         <div id="status" class="status st-yellow">Carregando…</div>
         <div id="substatus" class="sub"></div>
       </div>
+      <button id="btnConn" class="btn round" aria-label="Conexão com o SmarTV">🔗</button>
       <button id="btnGear" class="btn round" aria-label="Configurar token">⚙</button>
       <button id="btnHome" class="btn round" aria-label="Início">⌂</button>
     </div>
@@ -77,6 +78,37 @@
       </div>
       <div class="row">
         <a class="btn link" href="/diag">Verificar conexão</a>
+      </div>
+    </div>
+    <div id="connModal" class="panel modal hidden" role="dialog" aria-label="Conexão com o SmarTV">
+      <div class="mHead">
+        <b>Conexão</b>
+        <span id="connPill" class="status st-yellow">DESCONECTADO</span>
+      </div>
+      <div id="connMsg" class="errText"></div>
+      <div class="row tabs">
+        <button id="tabCode" class="btn tab active">Digitar código</button>
+        <button id="tabScan" class="btn tab">Escanear QR</button>
+      </div>
+      <div id="paneCode">
+        <p class="hint">Digite os 6 dígitos mostrados no PC em <b>Conexão</b>.</p>
+        <div class="row">
+          <input id="pairInput" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6"
+            placeholder="000000" autocomplete="one-time-code" />
+          <button id="pairGo" class="btn">Conectar</button>
+        </div>
+      </div>
+      <div id="paneScan" class="hidden">
+        <p class="hint">Aponte para o QR Code exibido no PC.</p>
+        <video id="scanVideo" class="scan hidden" playsinline muted></video>
+        <div class="row">
+          <button id="scanStart" class="btn">Abrir câmera</button>
+          <button id="scanStop" class="btn hidden">Fechar câmera</button>
+        </div>
+      </div>
+      <div class="row between">
+        <button id="connClose" class="btn">Fechar</button>
+        <button id="connEnd" class="btn danger">Encerrar conexão</button>
       </div>
     </div>
   </div>
