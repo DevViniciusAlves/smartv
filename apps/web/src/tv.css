@@ -1,0 +1,34 @@
+:root { color-scheme: dark; }
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0; background: #0b0e14; color: #f2f5fa;
+  font-family: system-ui, "Segoe UI", Roboto, sans-serif;
+  overflow: hidden;
+}
+.safe { height: 100vh; padding: 4vmin 5vmin; display: flex; flex-direction: column; }
+.top { display: flex; justify-content: space-between; align-items: baseline; }
+.brand { font-size: clamp(1.4rem, 3vw, 2.4rem); font-weight: 700; }
+.clock { display: flex; gap: 1rem; font-size: clamp(1.1rem, 2.4vw, 1.8rem); opacity: 0.9; }
+.cards {
+  flex: 1; display: grid; gap: 3vmin; align-content: center;
+  grid-template-columns: repeat(4, 1fr);
+}
+@media (max-width: 900px) { .cards { grid-template-columns: repeat(2, 1fr); } }
+.card {
+  border: 3px solid transparent; border-radius: 1.2rem;
+  background: #161b26; color: #fff; cursor: pointer;
+  min-height: 22vmin; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 1vmin;
+  font-size: clamp(1.2rem, 2.6vw, 2rem);
+  border-top: 0.8vmin solid var(--brand, #888);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.card .wordmark { font-weight: 800; letter-spacing: 0.04em; }
+.card.focused {
+  transform: scale(1.06);
+  border-color: #fff;
+  box-shadow: 0 0 0 0.4vmin var(--brand, #fff), 0 0 4vmin rgba(255,255,255,0.25);
+  outline: none;
+}
+.hint { text-align: center; opacity: 0.6; font-size: clamp(0.9rem, 1.8vw, 1.2rem); }

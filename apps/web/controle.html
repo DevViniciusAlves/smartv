@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <meta name="theme-color" content="#0b0e14" />
+  <title>Controle TV</title>
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="stylesheet" href="/src/controle.css" />
+</head>
+<body>
+  <div id="app" class="remote">
+    <div class="row top">
+      <button id="btnPower" class="btn round danger" aria-label="Desligar tela">⏻</button>
+      <div id="status" class="status">Conectando…</div>
+      <button id="btnHome" class="btn round" aria-label="Início">⌂</button>
+    </div>
+    <div id="apps" class="row apps" aria-label="Serviços"></div>
+    <div class="dpad-wrap">
+      <div class="dpad-side">
+        <button class="btn" data-hold="volume:up">Vol +</button>
+        <button class="btn" data-hold="volume:down">Vol −</button>
+        <button class="btn" data-send='{"type":"volume","action":"mute"}'>Mudo</button>
+      </div>
+      <div class="dpad" role="group" aria-label="Direcional">
+        <button class="btn dup" data-hold="key:up" aria-label="Cima">▲</button>
+        <button class="btn dleft" data-hold="key:left" aria-label="Esquerda">◀</button>
+        <button class="btn dok" data-send='{"type":"key","key":"enter"}' aria-label="OK">OK</button>
+        <button class="btn dright" data-hold="key:right" aria-label="Direita">▶</button>
+        <button class="btn ddown" data-hold="key:down" aria-label="Baixo">▼</button>
+      </div>
+      <div class="dpad-side">
+        <button class="btn" data-send='{"type":"media","action":"seekBackward"}'>−10s</button>
+        <button class="btn" data-send='{"type":"media","action":"seekForward"}'>+10s</button>
+        <button class="btn" data-send='{"type":"media","action":"fullscreen"}'>⛶</button>
+      </div>
+    </div>
+    <div class="row mid">
+      <button class="btn" data-send='{"type":"key","key":"back"}'>Voltar</button>
+      <button class="btn" data-send='{"type":"media","action":"playpause"}'>⏯</button>
+      <button id="btnKeyboard" class="btn">Teclado</button>
+      <button id="btnTouch" class="btn">Touch</button>
+    </div>
+    <div id="keyboardPanel" class="panel hidden">
+      <input id="kbdInput" type="text" placeholder="Digite e envie…" autocomplete="off" enterkeyhint="search" />
+      <div class="row">
+        <button id="kbdSend" class="btn">Enviar</button>
+        <button id="kbdEnter" class="btn">Enter</button>
+        <button id="kbdBack" class="btn">⌫</button>
+      </div>
+    </div>
+    <div id="touchPanel" class="panel hidden">
+      <div id="touchArea" class="touch">Arraste para mover • toque = clique • 2 dedos = botão direito/scroll</div>
+      <div class="row"><button id="touchBack" class="btn">Voltar ao controle</button></div>
+    </div>
+    <div id="tokenPanel" class="panel hidden">
+      <p>Cole o token do controle (ROOM_TOKEN):</p>
+      <input id="tokenInput" type="password" placeholder="token" autocomplete="off" />
+      <button id="tokenSave" class="btn">Salvar</button>
+    </div>
+  </div>
+  <script type="module" src="/src/controle.ts"></script>
+</body>
+</html>
