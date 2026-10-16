@@ -4,9 +4,10 @@ import { STREAMING_APPS } from "@smartv/shared";
 import type { Automation } from "./automation.js";
 import type { AgentConfig } from "./config.js";
 
-// Single Edge window (dedicated profile) driven over CDP on 127.0.0.1 only.
-// Home and the app shortcuts navigate this same window; no second process,
-// tab, window or default browser is ever opened by the happy path.
+// Single TV window (Edge kiosk/app, or the Electron desktop app) driven over
+// CDP on 127.0.0.1 only. Home and the app shortcuts navigate this same
+// window; no second process, tab, window or default browser is ever opened
+// by the happy path. In electron mode the agent never spawns Edge.
 export interface BrowserNavigator {
   navigate(url: string): Promise<boolean>;
 }
@@ -132,9 +133,23 @@ export class TvBrowser implements BrowserNavigator {
     return false;
   }
 
-  // Guarantees the TV window exists (kiosk/app, dedicated profile).
+  // Guarantees the TV window exists. Edge mode spawns it when missing;
+  // electron mode only probes (the desktop app owns its window).
   async ensureRunning(): Promise<"already-running" | "started" | "failed" | "skipped"> {
     const c = this.config;
+    if (c.tvTarget === "electron") {
+      const up = await fetchJson<CdpVersion>(`${this.cdpBase()}/json/version`);
+      if (up?.webSocketDebuggerUrl) {
+        // Never collapse here: the app owns its views (bar/home/service) and
+        // already denies popups itself. Closing "extra" targets would kill it.
+        this.log("browser already running, reusing window");
+        return "already-running";
+      }
+      this.log(
+        `browser failed: desktop app not listening on 127.0.0.1:${c.cdpPort} (start it with --smartv-cdp=${c.cdpPort})`,
+      );
+      return "failed";
+    }
     if (!c.browserProfileDir) {
       this.log("browser skipped: BROWSER_PROFILE_DIR not set");
       return "skipped";
@@ -196,6 +211,11 @@ export class TvBrowser implements BrowserNavigator {
     } catch (err) {
       this.log(`browser cdp failed (${(err as Error).message}), trying fallback`);
     }
+    if (this.config.tvTarget === "electron") {
+      // No Edge fallbacks here: address-bar/Respawn assume Edge chrome.
+      this.log("browser navigate failed: desktop app CDP unreachable");
+      return false;
+    }
     try {
       await this.navigateViaAddressBar(url);
       this.log("browser navigate: fallback address-bar");
@@ -217,11 +237,15 @@ export class TvBrowser implements BrowserNavigator {
 
   private async navigateViaCdp(url: string): Promise<void> {
     const targets = await fetchJson<CdpTarget[]>(`${this.cdpBase()}/json/list`);
-    const page = targets?.find((t) => t.type === "page" && t.webSocketDebuggerUrl);
+    const pages = (targets ?? []).filter((t) => t.type === "page" && t.webSocketDebuggerUrl);
+    // The service surface is the http(s) page (bar/home are local files).
+    const page = pages.find((t) => t.url.startsWith("http")) ?? pages[0];
     if (!page) throw new Error("no page target");
     await cdpSend(page.webSocketDebuggerUrl, "Page.navigate", { url });
     await cdpSend(page.webSocketDebuggerUrl, "Page.bringToFront");
-    await this.collapseToSingleTab(page.id);
+    // Single-tab collapse is an Edge-mode concern only; the desktop app
+    // manages its own views.
+    if (this.config.tvTarget === "edge") await this.collapseToSingleTab(page.id);
   }
 
   // Closes extra page targets (e.g. a target=_blank link that escaped),

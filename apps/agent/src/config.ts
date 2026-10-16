@@ -9,6 +9,9 @@ export interface AgentConfig {
   backBehavior: "alt-left" | "esc";
   tvMode: "kiosk" | "app";
   cdpPort: number;
+  // Navigation target: the Edge window (default) or the Electron desktop app.
+  // A single agent process drives exactly one target; never both.
+  tvTarget: "edge" | "electron";
 }
 
 function num(v: string | undefined, fallback: number): number {
@@ -23,6 +26,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AgentConfig {
   if (!agentToken) throw new Error("AGENT_TOKEN não definido");
   const back = env.BACK_BEHAVIOR === "esc" ? "esc" : "alt-left";
   const tvMode = env.TV_MODE === "app" ? "app" : "kiosk";
+  const tvTarget = env.TV_TARGET === "electron" ? "electron" : "edge";
   const cdpPort = num(env.CDP_PORT, 9222);
   if (!Number.isInteger(cdpPort) || cdpPort < 1024 || cdpPort > 65535) {
     throw new Error("CDP_PORT must be an integer between 1024 and 65535");
@@ -39,6 +43,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AgentConfig {
     tvWindowY: num(env.TV_WINDOW_Y, 0),
     backBehavior: back,
     tvMode,
+    tvTarget,
     cdpPort,
   };
 }

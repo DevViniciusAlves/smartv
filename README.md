@@ -86,6 +86,7 @@ a alternativa é o plano pago mais barato do Render.
    - `BACK_BEHAVIOR` = `alt-left` (voltar do navegador) ou `esc`
    - `TV_MODE` = `kiosk` (padrão: Edge em quiosque, sem barra nem abas) ou `app` (janela de app em tela cheia)
    - `CDP_PORT` = porta do Chrome DevTools Protocol, padrão `9222` (**somente `127.0.0.1`**, nunca expor)
+   - `TV_TARGET` = `edge` (padrão, janela do Edge) ou `electron` (app desktop aberto com `--smartv-cdp=PORTA`; ver `apps/desktop/README.md`)
 4. Teste: `npm start`. Deve logar `connected as agent` e abrir o launcher na janela única da TV.
 5. Iniciar com o Windows (admin): `powershell -ExecutionPolicy Bypass -File install-startup.ps1`.
    Para remover: `uninstall-startup.ps1`.

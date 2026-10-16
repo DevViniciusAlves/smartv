@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { app, BrowserWindow, WebContentsView, ipcMain, session } from "electron";
 import { STREAMING_APPS } from "@smartv/shared";
 import { appUrl, isAllowedAppId, isAllowedNavigation } from "./security.js";
+import { parseCdpPort } from "./cdp.js";
 import { LOAD_ERROR_TEXT, ViewRouter, type RouterSnapshot, type Surface } from "./router.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -267,6 +268,18 @@ function registerIpc(): void {
 }
 
 async function main(): Promise<void> {
+  // Opt-in remote control surface for the local agent: exposes CDP on
+  // 127.0.0.1 only. Off by default; must be called before app ready.
+  try {
+    const cdp = parseCdpPort(process.argv);
+    if (cdp !== null) {
+      app.commandLine.appendSwitch("remote-debugging-port", String(cdp));
+      app.commandLine.appendSwitch("remote-debugging-address", "127.0.0.1");
+      console.log(`[smartv] CDP listening on 127.0.0.1:${cdp} (local only)`);
+    }
+  } catch (err) {
+    console.warn(`[smartv] ${(err as Error).message}; continuing without CDP`);
+  }
   if (SHOT_PNG) {
     // Isolated profile: shot runs never touch (or lock) the real user data,
     // even while the real app is open.

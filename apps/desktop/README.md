@@ -99,19 +99,41 @@ de plataforma), e o npm não permite omitir só o Electron nem fixar o pacote
 nativo como dependência direta (quebra o `npm install` no Windows); o binário
 do Electron baixa só em builds frios, depois vale o cache da Vercel.
 
-## Controle pelo iPhone (etapa seguinte, não implementada aqui)
+## Controle pelo iPhone (via agente, sem mudar servidor/controle)
 
-De propósito, o app abre e funciona **local** primeiro. O caminho de
-integração, sem reescrever a infra:
+O app não fala com a rede: quem recebe o WebSocket do Render continua sendo o
+**agente** (`apps/agent`), agora com alvo `electron`. Um único agente por vez
+(o servidor substitui o anterior); nada de segunda infra ou API local aberta.
 
-1. Hoje o agente já envia teclas/mouse/volume de sistema — com o app em foco,
-   setas/Enter/espaço/mouse/volume/texto/power **já funcionam** (são globais).
-2. Falta só o chaveamento Home/aplicativos (comandos `home`/`app` do protocolo,
-   hoje amarrados ao Edge via CDP). Opção de menor risco: apontar o `TvBrowser`
-   do agente para o Electron rodando com `--remote-debugging-port` local
-   (mesma whitelist, mesmo protocolo, mesmos tokens). Nada muda no servidor.
+**Diagnóstico da cadeia (verificado no código):** `/controle` normaliza a URL
+(`https://`→`wss://` + `/ws`) e mostra um status por código (`4401` token,
+`4403` origem, `PC offline` distinto); o servidor autentica `controller` com
+`ROOM_TOKEN` e `agent` com `AGENT_TOKEN`, mantém 1 agente + N controles e
+retransmite comandos validados; o controle usa um único socket com geração e
+não reconecta em loop nesses erros; o protocolo já cobre tudo que o desktop
+precisa (`key/media/volume/app/text/textKey/mouse/scroll/power`). A falha
+antiga ("preso em Acordando servidor…") era status único sem diagnóstico —
+corrigida com statuses por motivo + página `/diag` + logs no Render.
 
-`src/keys.ts` já define os strokes de injeção (`sendInputEvent`) para essa etapa.
+**Configuração (PC da TV):**
+
+1. No `.env` do agente: `TV_TARGET=electron` e `CDP_PORT=9222` (mesma porta).
+2. Abra o app com a flag local (só `127.0.0.1`, desligada por padrão):
+   `npx electron apps/desktop --smartv-cdp=9222` (ou `npm start -w apps/desktop -- --smartv-cdp=9222`).
+3. Rode o agente normalmente (`npm start -w apps/agent`). O log deve mostrar
+   `browser already running, reusing window` e `connected as agent`.
+
+**Mapeamento no modo electron** (resto idêntico ao Edge):
+
+| Comando | Execução |
+|---|---|
+| setas/Enter, play/pause, ±10 s, `f`, texto, mouse, volume, power | iguais (teclas/mouse de sistema com o app em foco) |
+| `back`, `home` | `Esc` (Home global do app; sem chrome de navegador, `Alt+Left` não faria nada) |
+| `app` (4 atalhos) | `Page.navigate` via CDP na mesma view (whitelist de sempre) |
+
+Sem o app aberto com a flag, `navigate` falha fechado (`false` + log, sem
+abrir o Edge). `start-tv.ps1`/`open-launcher` nesse modo só verificam o CDP —
+a Home local é exibida pelo próprio app.
 
 ## Limitações conhecidas
 

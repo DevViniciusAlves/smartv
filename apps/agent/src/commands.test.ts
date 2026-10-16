@@ -62,6 +62,7 @@ function baseConfig(overrides: Partial<AgentConfig> = {}): AgentConfig {
     tvWindowY: 0,
     backBehavior: "alt-left",
     tvMode: "kiosk",
+    tvTarget: "edge",
     cdpPort: 9222,
     ...overrides,
   };
@@ -94,6 +95,13 @@ describe("handleCommand", () => {
   it("maps back to esc when configured", async () => {
     const { auto } = await run({ type: "key", key: "back" }, baseConfig({ backBehavior: "esc" }));
     expect(auto.calls).toEqual(["tap:esc"]);
+  });
+  it("maps back/home to esc in electron mode", async () => {
+    const cfg = baseConfig({ tvTarget: "electron" });
+    expect((await run({ type: "key", key: "back" }, cfg)).auto.calls).toEqual(["tap:esc"]);
+    const home = await run({ type: "key", key: "home" }, cfg);
+    expect(home.auto.calls).toEqual(["tap:esc"]);
+    expect(home.tv.navigated).toEqual([]);
   });
   it("maps home to launcher navigation (no fullscreen key)", async () => {
     const { auto, tv } = await run({ type: "key", key: "home" });

@@ -25,12 +25,16 @@ export async function handleCommand(
         case "right": await auto.tap("right"); break;
         case "enter": await auto.tap("enter"); break;
         case "back":
-          // Alt+Left = browser back. Configurable to Esc for dialogs/menus.
-          if (config.backBehavior === "esc") await auto.tap("esc");
+          // Edge: Alt+Left = browser back (configurable to Esc).
+          // Electron: no browser chrome, so Esc = the app's own "go Home".
+          if (config.tvTarget === "electron") await auto.tap("esc");
+          else if (config.backBehavior === "esc") await auto.tap("esc");
           else await auto.combo(["alt"], "left");
           break;
         case "home":
-          if (config.launcherUrl) await tv.navigate(config.launcherUrl);
+          // Electron: Esc triggers the app's global Home (local Home view).
+          if (config.tvTarget === "electron") await auto.tap("esc");
+          else if (config.launcherUrl) await tv.navigate(config.launcherUrl);
           break;
       }
       break;

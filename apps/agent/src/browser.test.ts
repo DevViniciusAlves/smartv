@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { WebSocketServer } from "ws";
 import { STREAMING_APPS } from "@smartv/shared";
 import type { AgentConfig } from "./config.js";
-import type { Automation } from "./automation.js";
+import type { Automation, KeyName, Modifier, MouseButton } from "./automation.js";
 import { TvBrowser } from "./browser.js";
 
 interface FakeCdp {
@@ -15,6 +15,7 @@ interface FakeCdp {
   closed: string[];
   connections: number;
   setPages(n: number): void;
+  setTargets(urls: string[]): void;
   close(): Promise<void>;
 }
 
@@ -27,11 +28,17 @@ async function startFakeCdp(): Promise<FakeCdp> {
     closed: [],
     connections: 0,
     setPages: () => undefined,
+    setTargets: () => undefined,
     close: async () => undefined,
   };
   let pageCount = 1;
+  let customUrls: string[] | null = null;
   fake.setPages = (n: number): void => {
     pageCount = n;
+    customUrls = null;
+  };
+  fake.setTargets = (urls: string[]): void => {
+    customUrls = urls;
   };
   fake.server = createServer((req, res) => {
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
@@ -40,10 +47,11 @@ async function startFakeCdp(): Promise<FakeCdp> {
       res.writeHead(200, { "content-type": "application/json" });
       res.end(JSON.stringify({ webSocketDebuggerUrl: `${wsBase}/browser` }));
     } else if (url.pathname === "/json/list") {
-      const pages = Array.from({ length: pageCount }, (_, i) => ({
+      const urls = customUrls ?? Array.from({ length: pageCount }, () => "https://example.com/tv");
+      const pages = urls.map((pageUrl, i) => ({
         id: `page-${i}`,
         type: "page",
-        url: "https://example.com/tv",
+        url: pageUrl,
         webSocketDebuggerUrl: `${wsBase}/page-${i}`,
       }));
       res.writeHead(200, { "content-type": "application/json" });
@@ -101,7 +109,52 @@ const noopAuto = {
   screenOff: async () => undefined,
 } satisfies Automation;
 
-function configFor(port: number): AgentConfig {
+class RecordingAuto implements Automation {
+  calls: string[] = [];
+  async tap(key: KeyName): Promise<void> {
+    this.calls.push(`tap:${key}`);
+  }
+  async combo(mods: Modifier[], key: KeyName): Promise<void> {
+    this.calls.push(`combo:${mods.join("+")}+${key}`);
+  }
+  async typeViaClipboard(text: string): Promise<void> {
+    this.calls.push(`type:${text.length}`);
+  }
+  async backspace(): Promise<void> {
+    this.calls.push("backspace");
+  }
+  async moveMouse(dx: number, dy: number): Promise<void> {
+    this.calls.push(`move:${dx},${dy}`);
+  }
+  async click(button: MouseButton): Promise<void> {
+    this.calls.push(`click:${button}`);
+  }
+  async scroll(dy: number): Promise<void> {
+    this.calls.push(`scroll:${dy}`);
+  }
+  async volumeUp(step = 2): Promise<void> {
+    this.calls.push(`volUp:${step}`);
+  }
+  async volumeDown(step = 2): Promise<void> {
+    this.calls.push(`volDown:${step}`);
+  }
+  async volumeMute(): Promise<void> {
+    this.calls.push("mute");
+  }
+  async screenOff(): Promise<void> {
+    this.calls.push("screenOff");
+  }
+}
+
+async function closedPort(): Promise<number> {
+  const s = createServer();
+  await new Promise<void>((resolve) => s.listen(0, "127.0.0.1", resolve));
+  const port = (s.address() as AddressInfo).port;
+  await new Promise<void>((resolve) => s.close(() => resolve()));
+  return port;
+}
+
+function configFor(port: number, tvTarget: "edge" | "electron" = "edge"): AgentConfig {
   return {
     backendUrl: "ws://127.0.0.1:1/ws",
     agentToken: "test",
@@ -112,6 +165,7 @@ function configFor(port: number): AgentConfig {
     tvWindowY: 0,
     backBehavior: "alt-left",
     tvMode: "kiosk",
+    tvTarget,
     cdpPort: port,
   };
 }
@@ -146,5 +200,27 @@ describe("TvBrowser", () => {
     fakes.push(fake);
     const tv = new TvBrowser(configFor(fake.port), noopAuto, () => undefined);
     expect(tv.isAllowed("https://example.com/tv")).toBe(true);
+  });
+  it("electron mode navigates the http surface and closes nothing", async () => {
+    const fake = await startFakeCdp();
+    fakes.push(fake);
+    // App-like targets: local bar/home plus the remote service view.
+    fake.setTargets(["file:///bar.html", "file:///home.html", "https://www.youtube.com/"]);
+    const tv = new TvBrowser(configFor(fake.port, "electron"), noopAuto, () => undefined);
+    expect(await tv.ensureRunning()).toBe("already-running");
+    const target = STREAMING_APPS[1].url;
+    expect(await tv.navigate(target)).toBe(true);
+    expect(fake.navigated).toEqual([target]);
+    expect(fake.closed).toEqual([]);
+  });
+  it("electron mode fails closed without Edge fallbacks when CDP is down", async () => {
+    const port = await closedPort();
+    const rec = new RecordingAuto();
+    const logs: string[] = [];
+    const tv = new TvBrowser(configFor(port, "electron"), rec, (m) => logs.push(m));
+    expect(await tv.navigate(STREAMING_APPS[0].url)).toBe(false);
+    expect(rec.calls).toEqual([]);
+    expect(await tv.ensureRunning()).toBe("failed");
+    expect(logs.some((l) => l.includes("--smartv-cdp"))).toBe(true);
   });
 });

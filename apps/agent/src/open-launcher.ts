@@ -10,7 +10,12 @@ async function main(): Promise<void> {
   if (!config.launcherUrl) throw new Error("LAUNCHER_URL not set");
   const { auto } = await createAutomation();
   const tv = new TvBrowser(config, auto, (m) => console.log(m));
-  await tv.ensureRunning();
+  if (config.tvTarget === "electron") {
+    // The desktop app shows its local Home by itself; just verify its CDP
+    // endpoint is up so remote app-switching will work.
+    await tv.ensureRunning();
+    return;
+  }
   const ok = await tv.navigate(config.launcherUrl);
   if (!ok) process.exit(1);
 }
