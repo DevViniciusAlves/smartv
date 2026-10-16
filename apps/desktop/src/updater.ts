@@ -17,7 +17,7 @@ export type UpdateEvent =
 export interface UpdaterLike {
   autoDownload: boolean;
   autoInstallOnAppQuit: boolean;
-  on(event: UpdateEvent, cb: (...args: never[]) => void): void;
+  on(event: UpdateEvent, cb: (...args: unknown[]) => void): void;
   checkForUpdates(): Promise<unknown>;
 }
 
@@ -49,6 +49,19 @@ export function statusFor(event: UpdateEvent): string {
   }
 }
 
+// Tells 404 (private repo / missing release) apart from offline, so the bar
+// shows the real cause instead of a generic failure. Never includes tokens.
+export function statusForError(err: unknown): string {
+  const msg = err instanceof Error ? `${err.message} ${(err as { stack?: string }).stack ?? ""}` : String(err);
+  if (/status code 404|404 Not Found|no published versions/i.test(msg)) {
+    return "Falha: release não encontrado (repositório privado?)";
+  }
+  if (/ENOTFOUND|EAI_AGAIN|ENETUNREACH|network|offline|ECONNREFUSED|ETIMEDOUT/i.test(msg)) {
+    return "Sem internet para verificar atualização";
+  }
+  return statusFor("error");
+}
+
 export function initAutoUpdate(updater: UpdaterLike, opts: UpdateOptions): () => void {
   const deferMs = opts.deferMs ?? DEFAULT_DEFER_MS;
   const intervalMs = opts.checkIntervalMs ?? DEFAULT_INTERVAL_MS;
@@ -56,12 +69,12 @@ export function initAutoUpdate(updater: UpdaterLike, opts: UpdateOptions): () =>
   updater.autoInstallOnAppQuit = true;
 
   let stopped = false;
+  const reportError = (err: unknown): void => {
+    if (!stopped) opts.onStatus(statusForError(err));
+  };
   const safeCheck = (): void => {
     if (stopped) return;
-    updater.checkForUpdates().catch(() => {
-      // Offline / GitHub down / dev mode: keep running this version.
-      if (!stopped) opts.onStatus(statusFor("error"));
-    });
+    updater.checkForUpdates().catch(reportError);
   };
 
   const events: UpdateEvent[] = [
@@ -73,8 +86,9 @@ export function initAutoUpdate(updater: UpdaterLike, opts: UpdateOptions): () =>
     "error",
   ];
   for (const ev of events) {
-    updater.on(ev, () => {
-      if (!stopped) opts.onStatus(statusFor(ev));
+    updater.on(ev, (...args: unknown[]) => {
+      if (stopped) return;
+      opts.onStatus(ev === "error" ? statusForError(args[0]) : statusFor(ev));
     });
   }
 

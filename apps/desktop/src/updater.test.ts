@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { initAutoUpdate, statusFor, type UpdaterLike } from "./updater.js";
+import { initAutoUpdate, statusFor, statusForError, type UpdaterLike } from "./updater.js";
 
 function fakeUpdater(): UpdaterLike & { handlers: Map<string, () => void>; checks: number } {
   const handlers = new Map<string, () => void>();
@@ -28,6 +28,20 @@ describe("update statuses", () => {
   });
 });
 
+describe("statusForError", () => {
+  it("names private repo / missing release on 404", () => {
+    expect(statusForError(new Error("HttpError: 404 Not Found"))).toContain("repositório privado");
+    expect(statusForError(new Error("No published versions on GitHub"))).toContain("repositório privado");
+  });
+  it("names offline network failures", () => {
+    expect(statusForError(new Error("getaddrinfo ENOTFOUND api.github.com"))).toContain("Sem internet");
+  });
+  it("falls back to the generic message", () => {
+    expect(statusForError(new Error("weird"))).toBe("Falha ao verificar atualização");
+    expect(statusForError("plain string")).toBe("Falha ao verificar atualização");
+  });
+});
+
 describe("initAutoUpdate", () => {
   it("enables background download + install on quit, checks once deferred", async () => {
     vi.useFakeTimers();
@@ -49,7 +63,7 @@ describe("initAutoUpdate", () => {
     try {
       const updater = fakeUpdater();
       updater.checkForUpdates = async () => {
-        throw new Error("offline");
+        throw new Error("boom");
       };
       const seen: string[] = [];
       initAutoUpdate(updater, { onStatus: (t) => seen.push(t), deferMs: 10, checkIntervalMs: 0 });
