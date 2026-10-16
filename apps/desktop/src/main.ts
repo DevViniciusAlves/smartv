@@ -8,8 +8,12 @@ import { STREAMING_APPS, controllerMessageSchema } from "@smartv/shared";
 import type { ControllerMessage } from "@smartv/shared";
 import { appUrl, isAllowedAppId, isAllowedNavigation } from "./security.js";
 import { parseCdpPort } from "./cdp.js";
-import { initAutoUpdate } from "./updater.js";
-import { autoUpdater } from "electron-updater";
+import { initAutoUpdate, type UpdaterLike } from "./updater.js";
+// electron-updater is CommonJS without detectable named exports once packed
+// inside app.asar, so the default import + destructure is required here.
+import updaterPkg from "electron-updater";
+
+const { autoUpdater } = updaterPkg as unknown as { autoUpdater: UpdaterLike };
 import { LOAD_ERROR_TEXT, ViewRouter, type RouterSnapshot, type Surface } from "./router.js";
 import {
   normalizeRemoteUrl,
