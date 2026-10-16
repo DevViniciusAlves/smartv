@@ -4,7 +4,7 @@ services:
     runtime: node
     plan: free
     rootDir: .
-    buildCommand: npm ci && npm run build -w packages/shared && npm run build -w apps/server
+    buildCommand: npm ci --include=dev && npm run build -w packages/shared && npm run build -w apps/server
     startCommand: npm run start -w apps/server
     healthCheckPath: /health
     envVars:
