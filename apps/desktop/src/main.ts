@@ -1,12 +1,24 @@
 import path from "node:path";
 import fs from "node:fs";
 import os from "node:os";
+import { execFile } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { app, BrowserWindow, WebContentsView, ipcMain, session } from "electron";
-import { STREAMING_APPS } from "@smartv/shared";
+import { STREAMING_APPS, controllerMessageSchema } from "@smartv/shared";
+import type { ControllerMessage } from "@smartv/shared";
 import { appUrl, isAllowedAppId, isAllowedNavigation } from "./security.js";
 import { parseCdpPort } from "./cdp.js";
+import { initAutoUpdate } from "./updater.js";
+import { autoUpdater } from "electron-updater";
 import { LOAD_ERROR_TEXT, ViewRouter, type RouterSnapshot, type Surface } from "./router.js";
+import {
+  normalizeRemoteUrl,
+  resolveRemoteConfig,
+  maskToken,
+} from "./remote-config.js";
+import { loadStoredRemoteConfig, saveStoredRemoteConfig } from "./remote-store.js";
+import { EmbeddedAgent } from "./remote-agent.js";
+import { describeAction, systemScriptFor } from "./command-runner.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DIST = __dirname;
@@ -30,6 +42,112 @@ let serviceView: WebContentsView | null = null;
 // feed it; they never change visibility directly (avoids out-of-order races).
 const router = new ViewRouter();
 let lastSurface: Surface | null = null;
+
+// Embedded remote agent: this app IS the controllable device. No separate
+// Node.js agent process is needed (and running one with the same AGENT_TOKEN
+// would fight over the room: the server keeps only the newest agent).
+let remoteAgent: EmbeddedAgent | null = null;
+let remoteStatusText = "Controle: não configurado";
+
+function pushRemoteStatus(text: string): void {
+  remoteStatusText = text;
+  // Never includes the token (status strings are static; tokens stay in the
+  // userData JSON file and in memory only).
+  console.log(`[smartv-remote] ${text}`);
+  barView?.webContents.send("smartv:remote-status", text);
+  homeView?.webContents.send("smartv:remote-status", text);
+}
+
+function runPowerShell(script: string): Promise<void> {
+  if (!script) return Promise.resolve();
+  if (process.platform !== "win32") {
+    console.warn("[smartv-remote] system action ignored (not Windows)");
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => {
+    execFile(
+      "powershell",
+      ["-NoProfile", "-NonInteractive", "-Command", script],
+      { windowsHide: true },
+      (err) => {
+        if (err) console.warn(`[smartv-remote] system action failed: ${err.message}`);
+        resolve();
+      },
+    );
+  });
+}
+
+function focusedContents(): { sendInputEvent(ev: unknown): void; focus(): void } | null {
+  const surface = router.snapshot().surface;
+  const view = surface === "service" ? serviceView : homeView;
+  if (!view) return null;
+  try {
+    view.webContents.focus();
+  } catch {
+    /* noop */
+  }
+  return view.webContents as unknown as { sendInputEvent(ev: unknown): void; focus(): void };
+}
+
+function runRemoteCommand(msg: ControllerMessage): void {
+  // Defense in depth: the transport already validated via zod, re-validate.
+  const parsed = controllerMessageSchema.safeParse(msg);
+  if (!parsed.success) return;
+  const action = describeAction(parsed.data);
+  if (action.kind === "ignore") return;
+  if (action.kind === "go-home") {
+    showHome();
+    return;
+  }
+  if (action.kind === "open-app") {
+    const res = openService(action.id);
+    if (!res.ok) console.warn(`[smartv-remote] open-app rejected: ${action.id}`);
+    return;
+  }
+  if (action.kind === "press") {
+    const target = focusedContents();
+    if (!target) return;
+    for (const ev of action.events) {
+      try {
+        target.sendInputEvent(ev);
+      } catch (err) {
+        console.warn(`[smartv-remote] input failed: ${(err as Error).message}`);
+        break;
+      }
+    }
+    return;
+  }
+  // System-level (volume/power/mouse): PowerShell via user32.dll.
+  const script = systemScriptFor(action);
+  void runPowerShell(script);
+}
+
+function currentRemoteConfig(): { backendUrl: string; agentToken: string } | null {
+  try {
+    const stored = loadStoredRemoteConfig(app.getPath("userData"));
+    const resolved = resolveRemoteConfig(process.argv, process.env, stored);
+    if (!resolved.enabled) return null;
+    return { backendUrl: resolved.backendUrl, agentToken: resolved.agentToken };
+  } catch {
+    return null;
+  }
+}
+
+function startEmbeddedAgent(): void {
+  if (remoteAgent) return;
+  remoteAgent = new EmbeddedAgent(currentRemoteConfig, {
+    onStatus: pushRemoteStatus,
+    onCommand: runRemoteCommand,
+    onLog: (line) => console.log(line),
+  });
+  remoteAgent.start();
+  const cfg = currentRemoteConfig();
+  if (cfg) {
+    console.log(`[smartv-remote] configured (source ok, token ${maskToken(cfg.agentToken)})`);
+  } else {
+    console.log("[smartv-remote] not configured: set server + token in the ⚙ Controle panel");
+  }
+}
 
 const COMMON_WEB_PREFS = {
   contextIsolation: true,
@@ -246,6 +364,11 @@ async function createWindow(): Promise<void> {
   await homeView.webContents.loadFile(distFile("renderer/home.html"));
   layout();
   showHome();
+  // Updates only make sense in the installed app: dev runs have no Releases
+  // metadata and must never phone home.
+  if (app.isPackaged && !SHOT_PNG) {
+    initAutoUpdate(autoUpdater, { onStatus: setStatus });
+  }
   if (SHOT_PNG) {
     // Lets the renderer boot, then captures and quits.
     setTimeout(() => void finishShot(), 4000);
@@ -264,6 +387,33 @@ function registerIpc(): void {
   });
   ipcMain.handle("smartv:go-home", () => {
     showHome();
+  });
+  ipcMain.handle("smartv:get-remote", () => {
+    const stored = loadStoredRemoteConfig(app.getPath("userData"));
+    const resolved = resolveRemoteConfig(process.argv, process.env, stored);
+    return {
+      backendUrl: resolved.backendUrl || stored.backendUrl || "",
+      hasToken: Boolean(resolved.agentToken),
+      tokenMasked: maskToken(resolved.agentToken),
+      enabled: resolved.enabled,
+      status: remoteStatusText,
+      source: resolved.source,
+    };
+  });
+  ipcMain.handle("smartv:set-remote", (_e, payload: unknown) => {
+    const p = (payload ?? {}) as { backendUrl?: unknown; agentToken?: unknown };
+    const backendUrl = normalizeRemoteUrl(typeof p.backendUrl === "string" ? p.backendUrl : "");
+    const stored = loadStoredRemoteConfig(app.getPath("userData"));
+    // Empty token field keeps the saved token (so the UI never needs to
+    // echo it back); an explicit non-empty value replaces it.
+    const rawToken = typeof p.agentToken === "string" ? p.agentToken.trim() : "";
+    const agentToken = rawToken || stored.agentToken || "";
+    if (!backendUrl || !agentToken) {
+      return { ok: false, error: "Informe servidor e token." };
+    }
+    saveStoredRemoteConfig(app.getPath("userData"), { backendUrl, agentToken });
+    remoteAgent?.reconnect();
+    return { ok: true, status: remoteStatusText };
   });
 }
 
@@ -299,6 +449,9 @@ async function main(): Promise<void> {
   await app.whenReady();
   try {
     await createWindow();
+    // The installed app is itself the controllable device (no standalone
+    // agent needed). Shot mode stays offline: no network from diagnostics.
+    if (!SHOT_PNG) startEmbeddedAgent();
   } catch (err) {
     console.error(`[smartv] startup failed: ${(err as Error).message}`);
     app.quit();
@@ -308,7 +461,11 @@ async function main(): Promise<void> {
     if (!win) void createWindow();
   });
   app.on("window-all-closed", () => {
+    remoteAgent?.stop();
     app.quit();
+  });
+  app.on("before-quit", () => {
+    remoteAgent?.stop();
   });
 }
 

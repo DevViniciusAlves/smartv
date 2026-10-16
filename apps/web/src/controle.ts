@@ -100,6 +100,15 @@ let conn: RemoteConnection | null = null;
 
 function send(msg: ControllerMessage): void {
   buzz();
+  // Real state: the socket can be open (server reachable) while the PC app
+  // is offline. Sending then would silently drop the command on the server,
+  // so block it here with a useful message instead of faking "connected".
+  const st = conn?.current;
+  if (st && st.name === "connected" && st.agentOnline === false) {
+    flashStatus();
+    subEl.textContent = "PC offline — comando não enviado. Ligue o app SmartTV no PC.";
+    return;
+  }
   conn?.send(msg);
 }
 

@@ -9,3 +9,22 @@ body { margin: 0; background: #0b0e14; color: #f2f5fa; font-family: system-ui, "
 }
 #title { font-weight: 700; }
 #status { margin-left: auto; opacity: 0.7; font-size: 0.9rem; }
+.remote { opacity: 0.85; font-size: 0.85rem; border: 1px solid #3a4358; border-radius: 8px; padding: 4px 8px; }
+.remotePanel {
+  position: absolute; top: 56px; right: 8px; width: min(420px, 90vw);
+  background: #141a27; border: 1px solid #3a4358; border-radius: 12px;
+  padding: 12px; display: flex; flex-direction: column; gap: 8px; z-index: 10;
+}
+.remotePanel.hidden { display: none; }
+.remotePanel label { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; opacity: 0.95; }
+.remotePanel input {
+  background: #0b0e14; color: #f2f5fa; border: 1px solid #3a4358; border-radius: 8px;
+  padding: 8px; font-size: 0.9rem; width: 100%;
+}
+.rpRow { display: flex; gap: 8px; align-items: center; }
+.rpState { font-size: 0.9rem; opacity: 0.9; }
+.rpHint { font-size: 0.8rem; opacity: 0.7; }
+.remotePanel button {
+  border: 0; border-radius: 10px; background: #2e4a7a; color: #fff;
+  font-size: 0.9rem; font-weight: 700; min-height: 36px; padding: 0 14px; cursor: pointer;
+}

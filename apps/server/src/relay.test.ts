@@ -14,8 +14,12 @@ describe("origin validation", () => {
   it("rejects unknown origin", () => {
     expect(isOriginAllowed("https://evil.com", ["https://x.vercel.app"])).toBe(false);
   });
-  it("rejects missing origin when list configured", () => {
-    expect(isOriginAllowed(undefined, ["https://x.vercel.app"])).toBe(false);
+  it("allows missing origin (native agent without Origin header)", () => {
+    // Browsers always send Origin; Node.js/Electron `ws` clients don't.
+    // The agent authenticates with AGENT_TOKEN after connect, so this only
+    // unblocks the PC app without weakening browser controller checks.
+    expect(isOriginAllowed(undefined, ["https://x.vercel.app"])).toBe(true);
+    expect(isOriginAllowed("", ["https://x.vercel.app"])).toBe(true);
   });
   it("accepts trailing slash and uppercase variants", () => {
     const { allowed } = parseAllowedOrigins("https://x.vercel.app");

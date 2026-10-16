@@ -12,18 +12,22 @@
     "start": "electron .",
     "pack": "npm run build && electron-builder --win --x64 --dir",
     "dist": "npm run build && electron-builder --win --x64",
+    "dist:publish": "npm run build && electron-builder --win --x64 --publish always",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.preload.json && tsc --noEmit -p tsconfig.renderer.json",
     "test": "vitest run",
     "lint": "eslint src"
   },
   "dependencies": {
-    "@smartv/shared": "1.0.0"
+    "@smartv/shared": "1.0.0",
+    "electron-updater": "^6.8.9",
+    "ws": "^8.18.0"
   },
   "optionalDependencies": {
     "electron": "^44.8.0",
     "electron-builder": "^26.15.3"
   },
   "devDependencies": {
+    "@types/ws": "^8.5.10",
     "typescript": "^5.6.2",
     "vite": "^5.4.8",
     "vitest": "^2.1.3"

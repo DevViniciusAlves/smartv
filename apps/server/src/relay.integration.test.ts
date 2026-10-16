@@ -163,6 +163,22 @@ describe("server integration", () => {
     expect(srv.lines.some((l) => l.includes("agent_replaced"))).toBe(true);
   });
 
+  it("accepts a native agent WITHOUT Origin header (Node/Electron ws)", async () => {
+    // Regression test: the real Windows agent sends no Origin header.
+    // With ALLOWED_ORIGINS configured, it must still connect (token auth
+    // happens in the hello message, after the upgrade).
+    const srv = await startServer();
+    const ctl = open(`ws://127.0.0.1:${srv.port}/ws`, GOOD_ORIGIN);
+    await waitOpen(ctl);
+    ctl.send(JSON.stringify({ type: "hello", role: "controller", token: ROOM, v: 1 }));
+    await waitMessage(ctl); // agentOnline: false
+    const agent = open(`ws://127.0.0.1:${srv.port}/ws`); // no Origin
+    await waitOpen(agent);
+    agent.send(JSON.stringify({ type: "hello", role: "agent", token: AGENT, v: 1 }));
+    const online = JSON.parse(await waitMessage(ctl)) as { type: string; agentOnline: boolean };
+    expect(online.agentOnline).toBe(true);
+  });
+
   it("serves /health with CORS only for allowed origins", async () => {
     const srv = await startServer();
     const ok = await fetch(`http://127.0.0.1:${srv.port}/health`, {

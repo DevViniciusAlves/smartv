@@ -80,12 +80,45 @@ npm run dist -w apps/desktop   # release\SmartTV Setup007...exe (instalador NSIS
 Não assinado: o Windows SmartScreen avisa na primeira execução (normal para
 app pessoal; "Mais informações → Executar assim mesmo"). `electronVersion` no
 `electron-builder.yml` precisa acompanhar o `electron` do `package.json`
-(workaround do bug electron-builder#3984 com workspaces npm).
+(workaround do bug electron-builder#3984 com workspaces npm). O nome do
+instalador não tem espaços (`artifactName`), porque o `latest.yml` referencia
+esse nome exato para download.
 
-## Variáveis de ambiente
+## Atualizações automáticas (GitHub Releases + electron-updater)
 
-Nenhuma. O app não usa tokens nem senhas; logins são feitos nas páginas
-oficiais e guardados na sessão persistente do próprio Chromium.
+O app instalado verifica novidades ao abrir (após ~15 s) e a cada 6 h, mostra
+o estado na barra (`Verificando…`, `baixando…`, `pronta — reinicie o app`) e
+instala **ao fechar/abrir** (`autoInstallOnAppQuit`; nunca reinicia sozinho).
+Sem internet ou com o GitHub fora, segue na versão atual. Só o Releases deste
+repo é consultado (`publish` no `electron-builder.yml`); dev (`npm start`)
+nunca verifica. Lógica em `src/updater.ts` (testada com emissor falso).
+
+**Publicar uma versão:**
+
+1. Atualize `"version"` em `apps/desktop/package.json` (ex. `1.0.1`).
+2. Commit + push na `main` (o CI valida tudo).
+3. Crie a tag **igual à versão**: `git tag v1.0.1; git push origin v1.0.1`.
+4. O job `release` (Windows) valida, gera o NSIS e publica o Release com
+   `SmartTV-Setup-*.exe` + `latest.yml` + `.blockmap` (diferencial).
+5. O CI usa o `GITHUB_TOKEN` automático (`contents: write`); **nenhum secret
+   manual, nenhum token no código**.
+
+**Testar uma atualização no Windows:** instale a versão antiga pelo exe do
+Release, publique a nova tag, abra o app (barra mostra o progresso), feche e
+reabra — a nova versão deve estar ativa. Produção real (instalado → release →
+update) ainda **não** foi testada de ponta a ponta; pendente no PC da TV.
+
+## Variáveis de ambiente / flags (só para o controle remoto)
+
+Opcional — a configuração normal é pela UI (⚙ Controle na barra, salva em
+`%AppData%/SmartTV/smartv-remote.json`). Alternativas sem UI:
+
+- CLI: `--smartv-backend=wss://…/ws --smartv-agent-token=…`, `--smartv-remote-off`
+- env: `SMARTV_BACKEND_URL`/`SMARTV_AGENT_TOKEN` (ou `BACKEND_URL`/`AGENT_TOKEN`)
+- legado CDP local: `--smartv-cdp=PORTA` (só `127.0.0.1`, para o agente standalone)
+
+Logins de streaming continuam nas páginas oficiais, guardados na sessão
+persistente do próprio Chromium. Nenhum token vai para logs ou Git.
 
 ## Render/Vercel preservados
 
@@ -99,11 +132,60 @@ de plataforma), e o npm não permite omitir só o Electron nem fixar o pacote
 nativo como dependência direta (quebra o `npm install` no Windows); o binário
 do Electron baixa só em builds frios, depois vale o cache da Vercel.
 
-## Controle pelo iPhone (via agente, sem mudar servidor/controle)
+## Controle pelo celular (agente embutido, sem processo separado)
 
-O app não fala com a rede: quem recebe o WebSocket do Render continua sendo o
-**agente** (`apps/agent`), agora com alvo `electron`. Um único agente por vez
-(o servidor substitui o anterior); nada de segunda infra ou API local aberta.
+O app instalado **é ele mesmo o dispositivo controlável**: ao abrir, ele
+conecta ao Render como `role: "agent"` (ver `src/remote-agent.ts`) e executa
+os comandos nativamente (`src/command-runner.ts`):
+
+```
+Celular /controle → wss://…/ws (Render, valida ROOM_TOKEN)
+  → app SmartTV no PC (valida AGENT_TOKEN, executa e responde estado)
+```
+
+| Comando | Execução no app |
+|---|---|
+| setas/Enter, play/pause, ±10 s, `f`, Próximo, texto, backspace/enter | `sendInputEvent` na view focada (Home ou serviço) |
+| `back`, `home` | volta à Home local (sem depender de `Alt+Left`/foco) |
+| `app` (4 atalhos) | navega a view de serviço (allowlist de sempre, sem CDP/flag) |
+| volume, mouse, power | sistema via PowerShell (`user32.dll`), igual ao agente standalone |
+
+**Configuração (uma vez, no PC da TV):** abra o app, clique em
+**⚙ Controle** na barra superior e salve:
+- Servidor: `wss://seu-servico.onrender.com/ws` (mesmo `VITE_BACKEND_URL` da Vercel)
+- Token do PC: o mesmo `AGENT_TOKEN` do Render.
+
+O status aparece na barra (`Controle: online / conectando… / token inválido /
+não configurado`). Também aceita provisionamento sem UI:
+`--smartv-backend=<url> --smartv-agent-token=<token>`, env
+`SMARTV_BACKEND_URL`/`SMARTV_AGENT_TOKEN` (ou `BACKEND_URL`/`AGENT_TOKEN`),
+ou o arquivo `%AppData%/SmartTV/smartv-remote.json`. Para desligar o
+embutido (modo Edge legado): `--smartv-remote-off`.
+
+**Importante — um agente por vez:** o servidor mantém 1 agente (o mais novo
+substitui o anterior, código 4400). Com o app configurado, **não rode
+`apps/agent` com o mesmo `AGENT_TOKEN`** (pare o Task Scheduler /
+`uninstall-startup.ps1`), senão os dois ficam se derrubando. O status
+`Controle: outro agente assumiu a sala` indica exatamente isso.
+
+**Diagnóstico da cadeia:** `/controle` mostra `PC offline` distinto de erro
+de servidor/token; comandos com PC offline são bloqueados no celular com
+`PC offline — comando não enviado`; a página `/diag` (passo 5) confirma se o
+PC está online; o Render loga `hello_ok/agent_online/agent_offline` sem
+tokens. Agentes nativos (Node/Electron via `ws`) não enviam `Origin`: o
+servidor aceita ausência de `Origin` (navegadores sempre enviam) e mantém a
+autenticação por token — sem isso, o agente de produção era recusado com
+4403 mesmo com o token certo.
+
+Modo legado (Edge via CDP) continua documentado abaixo para quem usa
+`apps/agent` sem este app.
+
+### Alternativa legada: agente standalone via CDP (só se precisar do Edge)
+
+Se você NÃO usa o agente embutido acima (ex.: ainda controla o Edge em vez
+do app), o **agente** (`apps/agent`) continua recebendo o WebSocket com alvo
+`electron`. Um único agente por vez (o servidor substitui o anterior); nada
+de segunda infra ou API local aberta. Não use os dois ao mesmo tempo.
 
 **Diagnóstico da cadeia (verificado no código):** `/controle` normaliza a URL
 (`https://`→`wss://` + `/ws`) e mostra um status por código (`4401` token,

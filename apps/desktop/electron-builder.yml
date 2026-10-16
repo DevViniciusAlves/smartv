@@ -10,6 +10,14 @@ files:
   - dist/**
   - "!dist/**/*.d.ts*"
   - package.json
+# Update source: GitHub Releases of this repo. electron-builder writes
+# app-update.yml into the package and latest.yml + blockmaps next to the
+# installer, which is what electron-updater reads. No tokens here: publishing
+# uses the CI-provided GITHUB_TOKEN (see .github/workflows/ci.yml).
+publish:
+  provider: github
+  owner: DevViniciusAlves
+  repo: smartv
 win:
   target:
     - nsis
@@ -17,5 +25,7 @@ win:
 nsis:
   oneClick: true
   perMachine: false
+  # No spaces: latest.yml references this exact name for downloads.
+  artifactName: SmartTV-Setup-${version}.${ext}
   createDesktopShortcut: true
   createStartMenuShortcut: true
