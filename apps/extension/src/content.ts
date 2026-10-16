@@ -1,5 +1,6 @@
 import { selectorsFor } from "./adapters.js";
 import { pickNext, type Direction } from "./spatial.js";
+import { initOverlay, pokeOverlay } from "./overlay.js";
 
 const HIGHLIGHT_ID = "smartv-focus-style";
 
@@ -86,6 +87,7 @@ document.addEventListener(
       // scroll nativo óbvio? Mantemos simples: sempre navega espacialmente.
       e.preventDefault();
       e.stopPropagation();
+      pokeOverlay();
       move(dir);
     } else if (e.key === "Enter" && document.activeElement instanceof HTMLElement) {
       if (document.activeElement.classList.contains("smartv-focused")) {
@@ -96,3 +98,26 @@ document.addEventListener(
   },
   true,
 );
+
+// Mantém a janela única: links same-domain com target=_blank navegam na
+// mesma aba em vez de abrir outra.
+document.addEventListener(
+  "click",
+  (e: MouseEvent) => {
+    const el = e.target instanceof Element ? e.target.closest('a[target="_blank"]') : null;
+    if (!(el instanceof HTMLAnchorElement)) return;
+    try {
+      const dest = new URL(el.href, window.location.href);
+      if (dest.hostname === window.location.hostname) {
+        e.preventDefault();
+        e.stopPropagation();
+        window.location.href = dest.toString();
+      }
+    } catch {
+      /* href inválida: deixa o comportamento padrão */
+    }
+  },
+  true,
+);
+
+initOverlay();

@@ -1,57 +1,47 @@
 import type { ControllerMessage } from "@smartv/shared";
 import { getAppUrl } from "@smartv/shared";
 import type { Automation } from "./automation.js";
-import { openInBrowser } from "./automation.js";
 import type { AgentConfig } from "./config.js";
+import type { BrowserNavigator } from "./browser.js";
 
-// Mapeia mensagens validadas (whitelist) para ações reais. Nunca executa
-// nada fora da whitelist.
+// Maps validated (whitelisted) messages to real actions. Never executes
+// anything outside the whitelist. Errors propagate to the caller (logged in
+// index.ts), never swallowed.
 export async function handleCommand(
   auto: Automation,
   config: AgentConfig,
+  tv: BrowserNavigator,
   msg: ControllerMessage,
-): Promise<{ volume?: number; muted?: boolean } | void> {
+): Promise<void> {
   const MOVE_LIMIT = 2000;
   const clamp = (n: number): number => Math.max(-MOVE_LIMIT, Math.min(MOVE_LIMIT, Math.trunc(n)));
 
   switch (msg.type) {
     case "key": {
       switch (msg.key) {
-        case "up": await auto.pressKey("{UP}").catch(() => auto.pressKey("up")); break;
-        case "down": await auto.pressKey("{DOWN}").catch(() => auto.pressKey("down")); break;
-        case "left": await auto.pressKey("{LEFT}").catch(() => auto.pressKey("left")); break;
-        case "right": await auto.pressKey("{RIGHT}").catch(() => auto.pressKey("right")); break;
-        case "enter": await auto.pressKey("{ENTER}").catch(() => auto.pressKey("enter")); break;
+        case "up": await auto.tap("up"); break;
+        case "down": await auto.tap("down"); break;
+        case "left": await auto.tap("left"); break;
+        case "right": await auto.tap("right"); break;
+        case "enter": await auto.tap("enter"); break;
         case "back":
-          if (config.backBehavior === "esc") {
-            await auto.pressKey("{ESC}").catch(() => auto.pressKey("esc"));
-          } else {
-            // Alt+Left = voltar no navegador.
-            await auto.hotkey("%{LEFT}");
-          }
+          // Alt+Left = browser back. Configurable to Esc for dialogs/menus.
+          if (config.backBehavior === "esc") await auto.tap("esc");
+          else await auto.combo(["alt"], "left");
           break;
         case "home":
-          if (config.launcherUrl) {
-            openInBrowser(
-              config.browserPath,
-              config.browserProfileDir,
-              config.launcherUrl,
-              config.tvWindowX,
-              config.tvWindowY,
-            );
-            await auto.fullscreen().catch(() => undefined);
-          }
+          if (config.launcherUrl) await tv.navigate(config.launcherUrl);
           break;
       }
       break;
     }
     case "media": {
       switch (msg.action) {
-        case "playpause": await auto.pressKey(" ").catch(() => undefined); break;
-        case "seekForward": await auto.pressKey("{RIGHT}").catch(() => undefined); break;
-        case "seekBackward": await auto.pressKey("{LEFT}").catch(() => undefined); break;
-        case "fullscreen": await auto.pressKey("f").catch(() => undefined); break;
-        case "next": await auto.hotkey("+{RIGHT}"); break;
+        case "playpause": await auto.tap("space"); break;
+        case "seekForward": await auto.tap("right"); break;
+        case "seekBackward": await auto.tap("left"); break;
+        case "fullscreen": await auto.tap("f"); break;
+        case "next": await auto.combo(["shift"], "right"); break;
       }
       break;
     }
@@ -63,17 +53,7 @@ export async function handleCommand(
     }
     case "app": {
       const url = getAppUrl(msg.id);
-      if (url) {
-        openInBrowser(
-          config.browserPath,
-          config.browserProfileDir,
-          url,
-          config.tvWindowX,
-          config.tvWindowY,
-        );
-        // Dá tempo da janela abrir e tenta tela cheia sem falhar o comando.
-        setTimeout(() => auto.fullscreen().catch(() => undefined), 1500).unref?.();
-      }
+      if (url) await tv.navigate(url);
       break;
     }
     case "text":
@@ -81,7 +61,7 @@ export async function handleCommand(
       break;
     case "textKey":
       if (msg.key === "backspace") await auto.backspace();
-      else await auto.pressKey("{ENTER}").catch(() => undefined);
+      else await auto.tap("enter");
       break;
     case "mouseMove":
       await auto.moveMouse(clamp(msg.dx), clamp(msg.dy));

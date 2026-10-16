@@ -1,24 +1,43 @@
-import { execFile, spawn } from "node:child_process";
+import { execFile } from "node:child_process";
 
-// Camada de automação: tenta nut-js; se indisponível (falha de provider nativo
-// no Windows), usa fallback PowerShell/SendKeys + nircmd-less APIs.
-// Toda entrada já foi validada pela whitelist (zod) antes de chegar aqui.
+// Automation layer with a semantic API: callers use key names, never raw
+// SendKeys strings or nut-js Key objects. Input is already validated by the
+// zod whitelist before reaching this layer. Errors are never swallowed here;
+// they propagate to the caller (index.ts logs them).
 
 export type MouseButton = "left" | "right";
 
+export type KeyName =
+  | "up"
+  | "down"
+  | "left"
+  | "right"
+  | "enter"
+  | "esc"
+  | "space"
+  | "backspace"
+  | "f"
+  | "f11"
+  // Extra key used only by the TvBrowser fallback (focus the address bar).
+  | "l";
+
+export type Modifier = "alt" | "shift" | "ctrl";
+
 export interface Automation {
-  pressKey(key: string): Promise<void>;
-  hotkey(...keys: string[]): Promise<void>;
+  tap(key: KeyName): Promise<void>;
+  combo(mods: Modifier[], key: KeyName): Promise<void>;
   typeViaClipboard(text: string): Promise<void>;
   backspace(): Promise<void>;
   moveMouse(dx: number, dy: number): Promise<void>;
   click(button: MouseButton): Promise<void>;
+  // dy > 0 means the finger moved down (two-finger drag down).
+  // Semantic: finger up scrolls the page down, like on a phone
+  // (same as rolling the mouse wheel down).
   scroll(dy: number): Promise<void>;
   volumeUp(step?: number): Promise<void>;
   volumeDown(step?: number): Promise<void>;
   volumeMute(): Promise<void>;
   screenOff(): Promise<void>;
-  fullscreen(): Promise<void>;
 }
 
 function runPowershell(script: string): Promise<void> {
@@ -34,17 +53,35 @@ function runPowershell(script: string): Promise<void> {
 
 const psEscape = (s: string): string => s.replace(/'/g, "''");
 
-// Fallback puro PowerShell usando System.Windows.Forms.SendKeys.
-class PowershellAutomation implements Automation {
+// SendKeys token per key. Mapping lives inside this backend only.
+const SEND_KEYS: Record<KeyName, string> = {
+  up: "{UP}",
+  down: "{DOWN}",
+  left: "{LEFT}",
+  right: "{RIGHT}",
+  enter: "{ENTER}",
+  esc: "{ESC}",
+  space: " ",
+  backspace: "{BACKSPACE}",
+  f: "f",
+  f11: "{F11}",
+  l: "l",
+};
 
-  async pressKey(key: string): Promise<void> {
+const MOD_CHARS: Record<Modifier, string> = { alt: "%", shift: "+", ctrl: "^" };
+
+// Pure PowerShell backend using System.Windows.Forms.SendKeys and user32.dll.
+class PowershellAutomation implements Automation {
+  async tap(key: KeyName): Promise<void> {
     await runPowershell(
-      `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('${psEscape(key)}')`,
+      `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('${psEscape(SEND_KEYS[key])}')`,
     );
   }
-  async hotkey(...keys: string[]): Promise<void> {
-    // keys no formato SendKeys já montado pelo chamador.
-    await this.pressKey(keys.join(""));
+  async combo(mods: Modifier[], key: KeyName): Promise<void> {
+    const seq = mods.map((m) => MOD_CHARS[m]).join("") + SEND_KEYS[key];
+    await runPowershell(
+      `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('${psEscape(seq)}')`,
+    );
   }
   async typeViaClipboard(text: string): Promise<void> {
     const b64 = Buffer.from(text, "utf16le").toString("base64");
@@ -56,7 +93,7 @@ class PowershellAutomation implements Automation {
     );
   }
   async backspace(): Promise<void> {
-    await this.pressKey("{BACKSPACE}");
+    await this.tap("backspace");
   }
   async moveMouse(dx: number, dy: number): Promise<void> {
     const c = `Add-Type -MemberDefinition '[DllImport("user32.dll")] public static extern bool GetCursorPos(out POINT p); [DllImport("user32.dll")] public static extern bool SetCursorPos(int x,int y); public struct POINT{public int X;public int Y;}' -Name U -Namespace W;` +
@@ -72,7 +109,10 @@ class PowershellAutomation implements Automation {
     );
   }
   async scroll(dy: number): Promise<void> {
-    const amt = Math.trunc(dy) * -12;
+    // MOUSEEVENTF_WHEEL: positive dwData scrolls up, negative scrolls down.
+    // Finger up (dy < 0) must scroll the page down, like a phone.
+    const amt = Math.trunc(dy) * 12;
+    if (amt === 0) return;
     await runPowershell(
       `Add-Type -MemberDefinition '[DllImport("user32.dll")] public static extern void mouse_event(int f,int x,int y,int d,int e);' -Name M2 -Namespace W;` +
         `[W.M2]::mouse_event(0x0800,0,0,(${amt}),0)`,
@@ -104,40 +144,43 @@ class PowershellAutomation implements Automation {
         `[W.P]::SendMessage(-1,0x0112,0xF170,2)|Out-Null`,
     );
   }
-  async fullscreen(): Promise<void> {
-    await this.pressKey("{F11}");
-  }
 }
 
-// Implementação nut-js carregada sob demanda (evita crash no import se o
-// provider nativo falhar; nesse caso cai para PowerShell).
+// nut-js backend, loaded on demand (a broken native provider falls back to
+// PowerShell instead of crashing the import).
 async function tryNutAutomation(): Promise<Automation | null> {
   try {
     const nut = await import("@nut-tree-fork/nut-js");
     const { keyboard, mouse, Key, Button } = nut;
     if (keyboard?.config) keyboard.config.autoDelayMs = 10;
-    const sendKeys: Record<string, (typeof Key)[keyof typeof Key][]> = {
-      up: [Key.Up],
-      down: [Key.Down],
-      left: [Key.Left],
-      right: [Key.Right],
-      enter: [Key.Enter],
-      space: [Key.Space],
-      esc: [Key.Escape],
-      f: [Key.F],
-      f11: [Key.F11],
-      backspace: [Key.Backspace],
+    const keyMap: Record<KeyName, (typeof Key)[keyof typeof Key]> = {
+      up: Key.Up,
+      down: Key.Down,
+      left: Key.Left,
+      right: Key.Right,
+      enter: Key.Enter,
+      esc: Key.Escape,
+      space: Key.Space,
+      backspace: Key.Backspace,
+      f: Key.F,
+      f11: Key.F11,
+      l: Key.L,
+    };
+    const modMap: Record<Modifier, (typeof Key)[keyof typeof Key]> = {
+      alt: Key.LeftAlt,
+      shift: Key.LeftShift,
+      ctrl: Key.LeftControl,
     };
     const nutAuto: Automation = {
-      pressKey: async (key: string) => {
-        const seq = sendKeys[key];
-        if (!seq) throw new Error(`unsupported nut key: ${key}`);
+      tap: async (key: KeyName) => {
+        const k = keyMap[key];
+        await keyboard.pressKey(k);
+        await keyboard.releaseKey(k);
+      },
+      combo: async (mods: Modifier[], key: KeyName) => {
+        const seq = [...mods.map((m) => modMap[m]), keyMap[key]];
         await keyboard.pressKey(...seq);
         await keyboard.releaseKey(...seq);
-      },
-      hotkey: async (...keys: string[]) => {
-        // hotkey genérico não usado no modo nut; mantido para interface.
-        await nutAuto.pressKey(keys.join("+"));
       },
       typeViaClipboard: async (text: string) => {
         const { default: clipboardy } = await import("clipboardy");
@@ -159,7 +202,11 @@ async function tryNutAutomation(): Promise<Automation | null> {
         await mouse.click(button === "left" ? Button.LEFT : Button.RIGHT);
       },
       scroll: async (dy: number) => {
-        await mouse.scrollUp(Math.trunc(-dy / 40));
+        // Finger up (dy < 0) scrolls the page down, like a phone.
+        const ticks = Math.trunc(Math.abs(dy) / 40);
+        if (ticks === 0) return;
+        if (dy < 0) await mouse.scrollDown(ticks);
+        else await mouse.scrollUp(ticks);
       },
       volumeUp: async (step = 2) => {
         for (let i = 0; i < step; i++) {
@@ -183,12 +230,8 @@ async function tryNutAutomation(): Promise<Automation | null> {
             `[W.P]::SendMessage(-1,0x0112,0xF170,2)|Out-Null`,
         );
       },
-      fullscreen: async () => {
-        await keyboard.pressKey(Key.F11);
-        await keyboard.releaseKey(Key.F11);
-      },
     };
-    // Smoke test barato.
+    // Cheap smoke test.
     await mouse.getPosition();
     return nutAuto;
   } catch {
@@ -200,21 +243,4 @@ export async function createAutomation(): Promise<{ auto: Automation; backend: "
   const nut = await tryNutAutomation();
   if (nut) return { auto: nut, backend: "nut-js" };
   return { auto: new PowershellAutomation(), backend: "powershell" };
-}
-
-export function openInBrowser(
-  browserPath: string,
-  profileDir: string,
-  url: string,
-  x: number,
-  y: number,
-): void {
-  const args = [
-    `--user-data-dir=${profileDir}`,
-    `--window-position=${x},${y}`,
-    "--disable-session-crashed-bubble",
-    url,
-  ];
-  const child = spawn(browserPath, args, { detached: true, stdio: "ignore", windowsHide: false });
-  child.unref();
 }

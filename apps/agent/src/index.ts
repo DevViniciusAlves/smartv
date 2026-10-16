@@ -1,11 +1,12 @@
 import "dotenv/config";
 import WebSocket from "ws";
 import { appendFileSync, mkdirSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { homedir } from "node:os";
 import { controllerMessageSchema } from "@smartv/shared";
 import { loadConfig } from "./config.js";
 import { createAutomation } from "./automation.js";
+import { TvBrowser } from "./browser.js";
 import { handleCommand } from "./commands.js";
 
 function log(msg: string): void {
@@ -24,20 +25,12 @@ async function main(): Promise<void> {
   const config = loadConfig();
   const { auto, backend } = await createAutomation();
   log(`automation backend: ${backend}`);
-  // Abre o launcher no boot para virar "smart TV" sozinho.
-  if (config.launcherUrl && config.browserProfileDir) {
-    const { openInBrowser } = await import("./automation.js");
-    try {
-      openInBrowser(
-        config.browserPath,
-        config.browserProfileDir,
-        config.launcherUrl,
-        config.tvWindowX,
-        config.tvWindowY,
-      );
-    } catch (err) {
-      log(`launcher open failed: ${(err as Error).message}`);
-    }
+  const tv = new TvBrowser(config, auto, log);
+  // Boot straight into the single TV window (kiosk/app, dedicated profile).
+  try {
+    await tv.ensureRunning();
+  } catch (err) {
+    log(`browser ensure failed: ${(err as Error).message}`);
   }
 
   let attempt = 0;
@@ -54,26 +47,28 @@ async function main(): Promise<void> {
       log("connected as agent");
     });
 
-    ws.on("message", async (data: Buffer) => {
-      let msg: unknown;
-      try {
-        msg = JSON.parse(data.toString("utf8"));
-      } catch {
-        return;
-      }
-      const parsed = controllerMessageSchema.safeParse(msg);
-      if (!parsed.success) return; // nunca executa fora da whitelist
-      if (parsed.data.type === "ping") {
-        ws?.send(JSON.stringify({ type: "pong" }));
-        return;
-      }
-      try {
-        await handleCommand(auto, config, parsed.data);
-      } catch (err) {
-        log(`command failed: ${(err as Error).message}`);
-        // Informa o controle sem derrubar o processo.
-        void dirname;
-      }
+    ws.on("message", (data: Buffer) => {
+      void (async () => {
+        let msg: unknown;
+        try {
+          msg = JSON.parse(data.toString("utf8"));
+        } catch {
+          return;
+        }
+        const parsed = controllerMessageSchema.safeParse(msg);
+        if (!parsed.success) return; // never executes outside the whitelist
+        if (parsed.data.type === "ping") {
+          ws?.send(JSON.stringify({ type: "pong" }));
+          return;
+        }
+        try {
+          await handleCommand(auto, config, tv, parsed.data);
+        } catch (err) {
+          // Per-command failure is logged (no typed text, no tokens) and the
+          // process keeps running.
+          log(`command failed: ${(err as Error).message}`);
+        }
+      })();
     });
 
     ws.on("close", () => {
@@ -90,7 +85,7 @@ async function main(): Promise<void> {
     setTimeout(connect, delay).unref?.();
   };
 
-  // Ping periódico: mantém o Render gratuito acordado e detecta queda.
+  // Periodic ping: keeps the free Render service awake and detects drops.
   setInterval(() => {
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: "ping" }));

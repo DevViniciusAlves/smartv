@@ -7,6 +7,8 @@ export interface AgentConfig {
   tvWindowX: number;
   tvWindowY: number;
   backBehavior: "alt-left" | "esc";
+  tvMode: "kiosk" | "app";
+  cdpPort: number;
 }
 
 function num(v: string | undefined, fallback: number): number {
@@ -20,6 +22,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AgentConfig {
   if (!backendUrl) throw new Error("BACKEND_URL não definido");
   if (!agentToken) throw new Error("AGENT_TOKEN não definido");
   const back = env.BACK_BEHAVIOR === "esc" ? "esc" : "alt-left";
+  const tvMode = env.TV_MODE === "app" ? "app" : "kiosk";
+  const cdpPort = num(env.CDP_PORT, 9222);
+  if (!Number.isInteger(cdpPort) || cdpPort < 1024 || cdpPort > 65535) {
+    throw new Error("CDP_PORT must be an integer between 1024 and 65535");
+  }
   return {
     backendUrl,
     agentToken,
@@ -31,5 +38,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AgentConfig {
     tvWindowX: num(env.TV_WINDOW_X, 0),
     tvWindowY: num(env.TV_WINDOW_Y, 0),
     backBehavior: back,
+    tvMode,
+    cdpPort,
   };
 }

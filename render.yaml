@@ -1,3 +1,8 @@
+# NOTE: if the Render service was created manually (not as a Blueprint from
+# this file), the dashboard's Build Command / Start Command take precedence
+# over this file. Keep both in sync:
+#   Build: npm ci --include=dev && npm run build -w packages/shared && npm run build -w apps/server
+#   Start: npm run start -w apps/server
 services:
   - type: web
     name: smartv-server

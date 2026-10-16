@@ -7,7 +7,7 @@
     "build": "vite build && node copy-manifest.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
-    "lint": "eslint src --ext .ts"
+    "lint": "eslint src"
   },
   "devDependencies": {
     "@types/chrome": "^0.0.268",
