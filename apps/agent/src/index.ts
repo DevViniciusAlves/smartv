@@ -3,7 +3,7 @@ import WebSocket from "ws";
 import { appendFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
-import { controllerMessageSchema } from "@smartv/shared";
+import { controllerMessageSchema, describeClose } from "@smartv/shared";
 import { loadConfig } from "./config.js";
 import { createAutomation } from "./automation.js";
 import { TvBrowser } from "./browser.js";
@@ -71,8 +71,13 @@ async function main(): Promise<void> {
       })();
     });
 
-    ws.on("close", () => {
-      log("disconnected, retrying with backoff");
+    ws.on("close", (code: number, reason: Buffer) => {
+      const desc = describeClose(code);
+      const reasonText = reason.toString("utf8").slice(0, 80);
+      log(`disconnected code=${code} kind=${desc.kind} reason=${reasonText || "-"}, retrying with backoff`);
+      if (desc.kind === "auth") {
+        log("AGENT_TOKEN invalid (check .env and Render)");
+      }
       scheduleReconnect();
     });
     ws.on("error", (err) => {

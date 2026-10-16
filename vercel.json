@@ -5,6 +5,7 @@
   "outputDirectory": "apps/web/dist",
   "rewrites": [
     { "source": "/tv", "destination": "/tv.html" },
-    { "source": "/controle", "destination": "/controle.html" }
+    { "source": "/controle", "destination": "/controle.html" },
+    { "source": "/diag", "destination": "/diag.html" }
   ]
 }

@@ -1,28 +1,28 @@
 import { STREAMING_APPS } from "@smartv/shared";
 import type { ControllerMessage } from "@smartv/shared";
+import { normalizeBackendUrl, RemoteConnection, type ConnStatus } from "./connection.js";
 
-const BACKEND_URL: string =
+const RAW_BACKEND_URL: string =
   (import.meta as unknown as { env: Record<string, string> }).env?.VITE_BACKEND_URL ?? "";
 const TOKEN_KEY = "smartv_token";
-const statusEl = document.getElementById("status") as HTMLElement;
 
-let ws: WebSocket | null = null;
-let attempt = 0;
-let token: string | null = localStorage.getItem(TOKEN_KEY);
-let agentOnline = false;
+const statusEl = document.getElementById("status") as HTMLElement;
+const subEl = document.getElementById("substatus") as HTMLElement;
+const errorPanel = document.getElementById("errorPanel") as HTMLElement;
+const errorText = document.getElementById("errorText") as HTMLElement;
+const tokenPanel = document.getElementById("tokenPanel") as HTMLElement;
+const tokenMsg = document.getElementById("tokenMsg") as HTMLElement;
+const tokenInput = document.getElementById("tokenInput") as HTMLInputElement;
+
+function getToken(): string | null {
+  return localStorage.getItem(TOKEN_KEY);
+}
 
 // Token via ?k=TOKEN na primeira abertura: salva e limpa a URL.
 {
   const q = new URLSearchParams(location.search).get("k");
-  if (q) {
-    token = q.trim();
-    if (token) localStorage.setItem(TOKEN_KEY, token);
-    history.replaceState(null, "", location.pathname);
-  }
-}
-
-function setStatus(s: string): void {
-  statusEl.textContent = s;
+  if (q?.trim()) localStorage.setItem(TOKEN_KEY, q.trim());
+  if (q !== null) history.replaceState(null, "", location.pathname);
 }
 
 function buzz(): void {
@@ -33,9 +33,74 @@ function buzz(): void {
   }
 }
 
-export function send(msg: ControllerMessage): void {
+let subTimer: number | null = null;
+
+function paint(color: "yellow" | "green" | "orange" | "red", text: string, sub = ""): void {
+  statusEl.textContent = text;
+  statusEl.className = `status st-${color}`;
+  subEl.textContent = sub;
+  if (subTimer !== null) {
+    clearTimeout(subTimer);
+    subTimer = null;
+  }
+}
+
+function renderStatus(s: ConnStatus): void {
+  errorPanel.classList.add("hidden");
+  switch (s.name) {
+    case "loading":
+      paint("yellow", "Carregando…");
+      // Cold start do plano gratuito pode levar até ~1 min.
+      subTimer = window.setTimeout(() => {
+        if (conn?.current.name === "loading") {
+          subEl.textContent = "O servidor gratuito pode levar até 1 minuto para acordar";
+        }
+      }, 5000);
+      break;
+    case "connected":
+      if (s.agentOnline) paint("green", "Conectado");
+      else paint("orange", "Conectado ao servidor, PC offline");
+      break;
+    case "error":
+      if (s.kind === "auth") {
+        paint("red", "Erro: token inválido");
+        openTokenPanel("Token inválido, digite de novo.");
+      } else if (s.kind === "origin") {
+        paint("red", "Erro: origem não permitida");
+        errorText.textContent =
+          `O servidor recusou esta origem: ${location.origin}. ` +
+          `Coloque exatamente isto em ALLOWED_ORIGINS no Render.`;
+        errorPanel.classList.remove("hidden");
+      } else if (s.kind === "config") {
+        paint("red", "Erro: servidor não configurado");
+        errorText.textContent = "Falta VITE_BACKEND_URL no deploy da Vercel. Faça o redeploy após configurar.";
+        errorPanel.classList.remove("hidden");
+      } else {
+        paint("red", "Erro: não consegui conectar ao servidor");
+        subEl.textContent = "";
+        errorPanel.classList.remove("hidden");
+        errorText.textContent = "Verifique a internet e o backend no Render.";
+      }
+      break;
+  }
+}
+
+function flashStatus(): void {
+  statusEl.classList.add("flash");
+  window.setTimeout(() => statusEl.classList.remove("flash"), 350);
+}
+
+const { url: BACKEND_URL, notes } = normalizeBackendUrl(RAW_BACKEND_URL);
+if (notes.includes("invalid")) {
+  // Configuração quebrada: não tenta conectar.
+  paint("red", "Erro: servidor não configurado");
+}
+
+let conn: RemoteConnection | null = null;
+
+function send(msg: ControllerMessage): void {
   buzz();
-  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
+  conn?.send(msg);
 }
 
 function parseHold(spec: string): ControllerMessage {
@@ -45,58 +110,57 @@ function parseHold(spec: string): ControllerMessage {
   throw new Error("bad hold spec");
 }
 
-function connect(): void {
-  if (!token) {
-    document.getElementById("tokenPanel")?.classList.remove("hidden");
-    setStatus("Sem token");
-    return;
-  }
+function startConnection(): void {
   if (!BACKEND_URL) {
-    setStatus("Sem servidor configurado");
+    renderStatus({ name: "error", kind: "config", autoRetry: false });
     return;
   }
-  attempt += 1;
-  setStatus(attempt === 1 ? "Conectando…" : "Acordando servidor…");
-  ws = new WebSocket(BACKEND_URL);
-  let authed = false;
-
-  // Se o Render gratuito estiver dormindo, a conexão demora; mostra estado.
-  const wakeTimer = setTimeout(() => {
-    if (!authed) setStatus("Acordando servidor…");
-  }, 2500);
-
-  ws.onopen = () => {
-    ws?.send(JSON.stringify({ type: "hello", role: "controller", token, v: 1 }));
-  };
-  ws.onmessage = (ev: MessageEvent) => {
-    let msg: unknown;
-    try {
-      msg = JSON.parse(String(ev.data));
-    } catch {
-      return;
-    }
-    const m = msg as { type?: string; agentOnline?: boolean };
-    if (m.type === "state") {
-      authed = true;
-      clearTimeout(wakeTimer);
-      agentOnline = m.agentOnline === true;
-      setStatus(agentOnline ? "Conectado" : "PC offline");
-    }
-  };
-  ws.onclose = () => {
-    clearTimeout(wakeTimer);
-    setStatus("Acordando servidor…");
-    const delay = Math.min(30000, 1000 * 2 ** Math.min(attempt, 5));
-    setTimeout(connect, delay);
-  };
-  ws.onerror = () => {
-    try {
-      ws?.close();
-    } catch {
-      /* noop */
-    }
-  };
+  if (!getToken()) {
+    tokenPanel.classList.remove("hidden");
+    paint("yellow", "Sem token — digite abaixo");
+    return;
+  }
+  conn?.dispose();
+  conn = new RemoteConnection(BACKEND_URL, getToken, {
+    onStatus: renderStatus,
+    onSendBlocked: flashStatus,
+  });
+  conn.connect();
 }
+
+// Painel de token (engrenagem): editável a qualquer hora.
+function openTokenPanel(msg = ""): void {
+  tokenMsg.textContent = msg;
+  tokenInput.value = "";
+  tokenPanel.classList.remove("hidden");
+}
+(document.getElementById("btnGear") as HTMLElement).addEventListener("click", () => {
+  tokenPanel.classList.toggle("hidden");
+  tokenMsg.textContent = "";
+});
+(document.getElementById("btnTokenShow") as HTMLElement).addEventListener("click", () => {
+  tokenInput.type = tokenInput.type === "password" ? "text" : "password";
+});
+(document.getElementById("tokenSave") as HTMLElement).addEventListener("click", () => {
+  const v = tokenInput.value.trim();
+  if (!v) return;
+  localStorage.setItem(TOKEN_KEY, v);
+  tokenPanel.classList.add("hidden");
+  tokenMsg.textContent = "";
+  startConnection();
+});
+(document.getElementById("tokenLogout") as HTMLElement).addEventListener("click", () => {
+  localStorage.removeItem(TOKEN_KEY);
+  conn?.dispose();
+  conn = null;
+  tokenMsg.textContent = "";
+  tokenPanel.classList.remove("hidden");
+  paint("yellow", "Sem token — digite abaixo");
+});
+(document.getElementById("btnRetry") as HTMLElement).addEventListener("click", () => {
+  if (conn) conn.reconnect();
+  else startConnection();
+});
 
 // Renderiza botões de apps a partir da config compartilhada.
 {
@@ -213,7 +277,6 @@ document.querySelectorAll<HTMLElement>("[data-hold]").forEach((el) => {
   let acc = { dx: 0, dy: 0 };
   let flushTimer: number | null = null;
   let twoFinger = false;
-  let twoLastY = 0;
   let moved = false;
 
   const flush = (): void => {
@@ -231,7 +294,6 @@ document.querySelectorAll<HTMLElement>("[data-hold]").forEach((el) => {
     tracking = true;
     moved = false;
     twoFinger = e.touches.length === 2;
-    if (twoFinger && e.touches[1]) twoLastY = e.touches[1].clientY;
   }, { passive: false });
   area.addEventListener("touchmove", (e: TouchEvent) => {
     e.preventDefault();
@@ -240,7 +302,6 @@ document.querySelectorAll<HTMLElement>("[data-hold]").forEach((el) => {
       const y = e.touches[0].clientY;
       const dy = (y - lastY) * 2;
       lastY = y;
-      void twoLastY;
       send({ type: "scroll", dy: Math.trunc(dy) });
       moved = true;
       return;
@@ -265,39 +326,26 @@ document.querySelectorAll<HTMLElement>("[data-hold]").forEach((el) => {
   });
 }
 
-// Token manual.
-{
-  const save = (): void => {
-    const v = (document.getElementById("tokenInput") as HTMLInputElement).value.trim();
-    if (!v) return;
-    token = v;
-    localStorage.setItem(TOKEN_KEY, v);
-    document.getElementById("tokenPanel")?.classList.add("hidden");
-    attempt = 0;
-    connect();
-  };
-  (document.getElementById("tokenSave") as HTMLElement).addEventListener("click", save);
-}
-
-// Wake Lock opcional + reconexão ao voltar do segundo plano.
+// Ao voltar do segundo plano (iOS inclusive): recria a conexão, sem confiar
+// no readyState do socket antigo.
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible" && (!ws || ws.readyState !== WebSocket.OPEN)) {
-    attempt = 0;
-    connect();
+  if (document.visibilityState === "visible") {
+    if (conn) conn.reconnect();
+    else startConnection();
   }
+  if (document.visibilityState === "visible") void lockScreen();
 });
-{
-  const lock = async (): Promise<void> => {
-    try {
-      await (navigator as Navigator & { wakeLock?: { request: (k: string) => Promise<unknown> } }).wakeLock?.request("screen");
-    } catch {
-      /* noop */
-    }
-  };
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible") void lock();
-  });
-  void lock();
+let wakeLock: unknown = null;
+async function lockScreen(): Promise<void> {
+  try {
+    wakeLock = await (
+      navigator as Navigator & { wakeLock?: { request: (k: string) => Promise<unknown> } }
+    ).wakeLock?.request("screen");
+    void wakeLock;
+  } catch {
+    /* noop */
+  }
 }
+void lockScreen();
 
-connect();
+startConnection();

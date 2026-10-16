@@ -16,7 +16,7 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "typecheck": "npm run typecheck -w packages/shared && npm run typecheck -w apps/server && npm run typecheck -w apps/agent && npm run typecheck -w apps/web && npm run typecheck -w apps/extension",
-    "test": "npm run test -w packages/shared && npm run test -w apps/server && npm run test -w apps/agent && npm run test -w apps/extension"
+    "test": "npm run test -w packages/shared && npm run test -w apps/server && npm run test -w apps/agent && npm run test -w apps/web && npm run test -w apps/extension"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",

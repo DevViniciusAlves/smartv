@@ -7,6 +7,7 @@ export default defineConfig({
         main: "index.html",
         tv: "tv.html",
         controle: "controle.html",
+        diag: "diag.html",
       },
     },
   },

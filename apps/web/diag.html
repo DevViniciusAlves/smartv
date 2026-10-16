@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0b0e14" />
+  <title>Verificar conexão</title>
+  <link rel="stylesheet" href="/src/controle.css" />
+  <style>
+    .step { display: flex; gap: 10px; align-items: flex-start; padding: 10px; }
+    .icon { font-size: 1.3rem; min-width: 1.6em; text-align: center; }
+    .detail { font-size: 0.85rem; opacity: 0.9; overflow-wrap: anywhere; }
+  </style>
+</head>
+<body>
+  <div id="app" class="remote">
+    <h1 style="font-size:1.2rem">Verificar conexão</h1>
+    <div id="steps"></div>
+    <div class="row">
+      <button id="btnRun" class="btn">Rodar de novo</button>
+      <button id="btnCopy" class="btn">Copiar relatório</button>
+    </div>
+    <div class="row"><a class="btn link" href="/controle">Voltar ao controle</a></div>
+  </div>
+  <script type="module" src="/src/diag.ts"></script>
+</body>
+</html>

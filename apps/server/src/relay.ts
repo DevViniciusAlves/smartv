@@ -6,7 +6,10 @@ import {
   agentStateSchema,
   MAX_MESSAGE_BYTES,
   safeEqual,
+  CLOSE_CODES,
 } from "@smartv/shared";
+import type { Logger } from "./logger.js";
+import { isOriginAllowed, normalizeOrigin } from "./origins.js";
 
 export interface RoomConfig {
   roomToken: string;
@@ -28,24 +31,6 @@ interface Client {
   alive: boolean;
 }
 
-export function parseAllowedOrigins(raw: string | undefined): string[] {
-  if (!raw) return [];
-  return raw
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-}
-
-export function isOriginAllowed(
-  origin: string | undefined,
-  allowed: string[],
-): boolean {
-  // Sem lista configurada: em dev permite tudo; em produção o operador deve configurar.
-  if (allowed.length === 0) return true;
-  if (!origin) return false;
-  return allowed.includes(origin);
-}
-
 export function createRoomState() {
   return {
     agent: null as Client | null,
@@ -55,11 +40,33 @@ export function createRoomState() {
 
 export type RoomState = ReturnType<typeof createRoomState>;
 
-export function attachRelay(wss: WebSocketServer, config: RoomConfig, room: RoomState): void {
+export function controllerCount(room: RoomState): number {
+  return room.controllers.size;
+}
+
+export function agentOnline(room: RoomState): boolean {
+  return room.agent !== null;
+}
+
+function noopLogger(): Logger {
+  const noop = (): void => undefined;
+  return { debug: noop, info: noop, warn: noop, error: noop };
+}
+
+export function attachRelay(
+  wss: WebSocketServer,
+  config: RoomConfig,
+  room: RoomState,
+  log: Logger = noopLogger(),
+): void {
   wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
     const origin = req.headers.origin as string | undefined;
     if (!isOriginAllowed(origin, config.allowedOrigins)) {
-      ws.close(4403, "origin not allowed");
+      log.warn("origin_not_allowed", {
+        origin: normalizeOrigin(origin) || "-",
+        allowed: config.allowedOrigins.join(",") || "-",
+      });
+      ws.close(CLOSE_CODES.ORIGIN_NOT_ALLOWED, "origin not allowed");
       return;
     }
 
@@ -73,7 +80,10 @@ export function attachRelay(wss: WebSocketServer, config: RoomConfig, room: Room
     };
 
     const helloTimer = setTimeout(() => {
-      if (!client.authed) ws.close(4401, "auth timeout");
+      if (!client.authed) {
+        log.warn("hello_fail", { reason: "timeout", role: "?" });
+        ws.close(CLOSE_CODES.AUTH_FAILED, "auth timeout");
+      }
     }, 5000);
     helloTimer.unref?.();
 
@@ -83,7 +93,7 @@ export function attachRelay(wss: WebSocketServer, config: RoomConfig, room: Room
 
     ws.on("message", (data: Buffer) => {
       if (Buffer.byteLength(data as Buffer) > MAX_MESSAGE_BYTES) {
-        ws.close(4409, "message too large");
+        ws.close(CLOSE_CODES.MESSAGE_TOO_LARGE, "message too large");
         return;
       }
       let msg: unknown;
@@ -95,30 +105,36 @@ export function attachRelay(wss: WebSocketServer, config: RoomConfig, room: Room
       if (!client.authed) {
         const hello = helloSchema.safeParse(msg);
         if (!hello.success || hello.data.v !== 1) {
-          ws.close(4401, "bad hello");
+          log.warn("hello_fail", { reason: "bad_hello", role: "?" });
+          ws.close(CLOSE_CODES.AUTH_FAILED, "bad hello");
           return;
         }
         const expected = hello.data.role === "agent" ? config.agentToken : config.roomToken;
         if (!safeEqual(hello.data.token, expected)) {
-          ws.close(4401, "bad token");
+          log.warn("hello_fail", { reason: "bad_token", role: hello.data.role });
+          ws.close(CLOSE_CODES.AUTH_FAILED, "bad token");
           return;
         }
         client.authed = true;
         client.role = hello.data.role;
         clearTimeout(helloTimer);
+        log.info("hello_ok", { role: client.role });
         if (client.role === "agent") {
           // Apenas um agente ativo: substitui o anterior.
           if (room.agent && room.agent.ws.readyState === WebSocket.OPEN) {
             try {
-              room.agent.ws.close(4400, "replaced by new agent");
+              room.agent.ws.close(CLOSE_CODES.REPLACED_BY_NEW_AGENT, "replaced by new agent");
             } catch {
               /* noop */
             }
+            log.info("agent_replaced", {});
           }
           room.agent = client;
+          log.info("agent_online", { controllers: controllerCount(room) });
           broadcastAgentOnline(room, true);
         } else {
           room.controllers.add(client);
+          log.info("controller_online", { controllers: controllerCount(room) });
           // Informa ao controle recém-chegado se o PC está online.
           sendState(client.ws, room.agent !== null);
         }
@@ -136,6 +152,7 @@ export function attachRelay(wss: WebSocketServer, config: RoomConfig, room: Room
       if (client.role === "controller") {
         const parsed = controllerMessageSchema.safeParse(msg);
         if (!parsed.success) return;
+        log.debug("cmd", { cmd: parsed.data.type });
         const raw = JSON.stringify(parsed.data);
         if (room.agent && room.agent.ws.readyState === WebSocket.OPEN) {
           room.agent.ws.send(raw);
@@ -158,13 +175,24 @@ export function attachRelay(wss: WebSocketServer, config: RoomConfig, room: Room
       }
     });
 
-    ws.on("close", () => {
+    ws.on("close", (code: number, reason: Buffer) => {
       clearTimeout(helloTimer);
+      const reasonText = reason.toString("utf8").slice(0, 80);
       if (client.role === "agent" && room.agent === client) {
         room.agent = null;
+        log.info("agent_offline", { code, reason: reasonText || "-" });
         broadcastAgentOnline(room, false);
       } else {
         room.controllers.delete(client);
+        if (client.authed) {
+          log.info("controller_offline", {
+            code,
+            reason: reasonText || "-",
+            controllers: controllerCount(room),
+          });
+        } else {
+          log.info("close", { code, reason: reasonText || "-", authed: false });
+        }
       }
     });
   });

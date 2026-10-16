@@ -53,6 +53,7 @@ Quem executa teclas/mouse/volume é o agente local. A página `/tv` não usa Web
    - `AGENT_TOKEN` = token do PC (diferente do anterior)
    - `ALLOWED_ORIGINS` = URL do Vercel, ex. `https://seu-app.vercel.app`
    - `NODE_ENV` = `production` (`PORT` o Render define sozinho)
+   - `LOG_LEVEL` = `info` (opcional; use `debug` para ver o tipo de cada comando)
 3. Anote a URL pública, ex. `wss://seu-servico.onrender.com/ws` (o caminho do WebSocket é `/ws`).
 
 **Plano gratuito:** o serviço dorme após inatividade. O agente envia ping a cada ~30 s para manter
@@ -174,6 +175,35 @@ e use atalhos de teclado + extensão de foco. Não há troca automática de user
 | Janela abre no monitor errado | Ajuste `TV_WINDOW_X/Y` (seção 3). No modo `app`, o agente reposiciona via CDP; no `kiosk`, confira se o `--window-position` levou a janela. |
 | Segunda janela/aba do Edge abre | O agente navega a janela única via CDP; confira no log qual caminho foi usado (`cdp` x `fallback`). Se o CDP não subiu (porta recusada no perfil), o fallback por `Ctrl+L`/respawn é usado e registrado. |
 | Token recusado | `ROOM_TOKEN` diferente entre celular e Render, ou `ALLOWED_ORIGINS` sem a URL do Vercel. |
+
+## Solução de problemas de conexão
+
+O controle mostra exatamente o motivo. Tabela sintoma → causa → o que fazer
+(entre parênteses, a linha que deve aparecer nos logs do Render):
+
+| Sintoma no celular | Causa | O que fazer |
+|---|---|---|
+| `Carregando…` para sempre (>1 min) | Servidor fora do ar ou URL errada (sem `/health` respondendo) | Abra `/diag` no celular: o passo 3 diz se o servidor responde. Confira `VITE_BACKEND_URL` na Vercel + redeploy |
+| `Erro: token inválido` | `ROOM_TOKEN` do celular ≠ Render | O painel do token abre sozinho: digite de novo e salve (log: `hello_fail reason=bad_token`) |
+| `Erro: origem não permitida` | URL da Vercel fora de `ALLOWED_ORIGINS` | Copie a origem mostrada na tela para `ALLOWED_ORIGINS` no Render, exatamente igual (log: `origin_not_allowed`) |
+| `Erro: servidor não configurado` | Falta `VITE_BACKEND_URL` | Configure na Vercel (Production) e faça redeploy |
+| `Conectado ao servidor, PC offline` | Agente do PC desconectado | Ligue o PC, confira `.env` (`AGENT_TOKEN`, `BACKEND_URL`) e o log `%USERPROFILE%\.smartv\agent.log` (no Render: sem linha `agent_online`) |
+| `/health` não abre no navegador | Serviço dormindo ou URL errada | Aguarde ~1 min (cold start) e recarregue; confira a URL do serviço |
+
+**Passo a passo no celular:** abra `https://seu-app.vercel.app/diag` e siga os 5 passos
+(config → token → `/health` → handshake → PC). Cada ❌ diz o que fazer. O botão
+**Copiar relatório** gera um texto sem o token para colar no suporte.
+
+**iPhone:** o app instalado na tela inicial (PWA) **não compartilha** o `localStorage`
+com o Safari. O token precisa ser digitado **dentro do próprio app** (engrenagem ⚙ ou
+`?k=TOKEN` aberto no app). Se instalou o PWA antes de salvar o token, abra o `?k=`
+no app instalado, não no Safari.
+
+Para depurar pelo Render: **Dashboard → serviço → Logs**. Você deve ver o `boot`
+(porta, `ALLOWED_ORIGINS`, tokens marcados só como "definido"), cada `upgrade`
+(caminho, origem), `hello_ok`/`hello_fail` com o motivo, e `agent_online`/`agent_offline`.
+Nenhum log contém tokens. Nível de detalhe via `LOG_LEVEL` (`debug` mostra só o tipo
+dos comandos, nunca o conteúdo).
 
 ## Limitações conhecidas (honestas)
 
