@@ -123,14 +123,15 @@ persistente do próprio Chromium. Nenhum token vai para logs ou Git.
 ## Render/Vercel preservados
 
 Intocados nesta etapa. O deploy do backend/frontend não muda, exceto:
-`electron`/`electron-builder` são `optionalDependencies`, e o comando de
-instalação no Render (`npm ci --include=dev --omit=optional`) pula o download
-do Electron (o build do servidor usa só `tsc`, sem binários nativos).
-Na Vercel a instalação é completa (`npm install`): o `--omit=optional` quebrava
-o Vite no Linux (faltava `@rollup/rollup-linux-x64-gnu`, dependência opcional
-de plataforma), e o npm não permite omitir só o Electron nem fixar o pacote
-nativo como dependência direta (quebra o `npm install` no Windows); o binário
-do Electron baixa só em builds frios, depois vale o cache da Vercel.
+`electron`/`electron-builder` são `devDependencies` (ferramentas de build do
+desktop). O comando de instalação no Render
+(`npm ci --omit=dev --omit=optional`) instala só o necessário para compilar o
+servidor (todas as ferramentas de build dele estão em `dependencies`).
+Na Vercel a instalação é completa (`npm install`): o build web precisa das
+`devDependencies`, e o npm não permite omitir só o Electron (tentativas com
+`--omit=optional` quebraram o Vite no Linux, e fixar o pacote nativo do
+Rollup quebra o install no Windows); o binário do Electron baixa só em
+builds frios, depois vale o cache da Vercel.
 
 ## Controle pelo celular (agente embutido, sem processo separado)
 

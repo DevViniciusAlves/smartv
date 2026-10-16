@@ -44,9 +44,10 @@ Quem executa teclas/mouse/volume é o agente local. A página `/tv` não usa Web
    Você pode criar como **Blueprint** (o `render.yaml` já configura build/start e `/health`)
    ou manualmente. **Atenção:** se o serviço foi criado manualmente, o **Build Command e o
    Start Command do painel valem no lugar do `render.yaml`** — mantenha os dois iguais:
-   - Build: `npm ci --include=dev && npm run build -w packages/shared && npm run build -w apps/server`
-     (o `--include=dev` é obrigatório: com `NODE_ENV=production` o npm pula as
-     `devDependencies`, e o `tsc` + `@types/*` precisam estar instalados no build)
+   - Build: `npm ci --omit=dev --omit=optional && npm run build -w packages/shared && npm run build -w apps/server`
+     (instalação mínima: todas as ferramentas de build do servidor — `tsc`,
+     `@types/*` — estão em `dependencies`; com `NODE_ENV=production` o npm
+     pularia as `devDependencies` de qualquer jeito)
    - Start: `npm run start -w apps/server`
    - Health Check Path: `/health`
 2. No painel do Render, defina as variáveis:
@@ -256,6 +257,6 @@ npm run test
 - [x] Agente reconecta com backoff, inicia com o Windows (Task Scheduler).
 - [x] Controle mostra: conectando / acordando servidor / conectado / PC offline.
 - [x] Token inválido e origem não permitida recusados; whitelist zod em server e agente.
-- [x] Build do server passa sem `--include=dev`; build do web é autossuficiente; um só `vercel.json`.
+- [x] Build do server passa só com `dependencies`; build do web é autossuficiente; um só `vercel.json`.
 - [x] Nenhum segredo no repo; `.env.example` em cada app.
 - [x] Lint, typecheck e testes (incluindo agente: 14 testes) passam.
