@@ -90,9 +90,14 @@ oficiais e guardados na sessão persistente do próprio Chromium.
 ## Render/Vercel preservados
 
 Intocados nesta etapa. O deploy do backend/frontend não muda, exceto:
-`electron`/`electron-builder` são `optionalDependencies`, e os comandos de
-instalação na Vercel (`npm install --omit=optional`) e no Render
-(`npm ci --include=dev --omit=optional`) pulam o download do Electron.
+`electron`/`electron-builder` são `optionalDependencies`, e o comando de
+instalação no Render (`npm ci --include=dev --omit=optional`) pula o download
+do Electron (o build do servidor usa só `tsc`, sem binários nativos).
+Na Vercel a instalação é completa (`npm install`): o `--omit=optional` quebrava
+o Vite no Linux (faltava `@rollup/rollup-linux-x64-gnu`, dependência opcional
+de plataforma), e o npm não permite omitir só o Electron nem fixar o pacote
+nativo como dependência direta (quebra o `npm install` no Windows); o binário
+do Electron baixa só em builds frios, depois vale o cache da Vercel.
 
 ## Controle pelo iPhone (etapa seguinte, não implementada aqui)
 

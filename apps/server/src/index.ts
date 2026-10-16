@@ -34,6 +34,9 @@ if (ROOM_TOKEN === AGENT_TOKEN) {
   process.exit(1);
 }
 if (ALLOWED_ORIGINS.length === 0 && NODE_ENV === "production") {
+  for (const bad of INVALID_ORIGINS) {
+    log.warn("invalid_origin_ignored", { value: bad.slice(0, 120) });
+  }
   log.error("fatal", { reason: "ALLOWED_ORIGINS is empty in production" });
   process.exit(1);
 }
