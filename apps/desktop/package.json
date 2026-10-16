@@ -8,11 +8,11 @@
   "main": "dist/main.js",
   "scripts": {
     "dev": "npm run build && electron .",
-    "build": "tsc -p tsconfig.json && vite build --config vite.renderer.ts",
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.preload.json && node scripts/publish-preload.mjs && vite build --config vite.renderer.ts",
     "start": "electron .",
     "pack": "npm run build && electron-builder --win --x64 --dir",
     "dist": "npm run build && electron-builder --win --x64",
-    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.renderer.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.preload.json && tsc --noEmit -p tsconfig.renderer.json",
     "test": "vitest run",
     "lint": "eslint src"
   },

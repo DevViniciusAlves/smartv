@@ -7,3 +7,4 @@ apps/web/dist/
 apps/agent/logs/
 apps/agent/*.log
 apps/desktop/release/
+apps/desktop/dist-preload/

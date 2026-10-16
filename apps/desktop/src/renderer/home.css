@@ -33,3 +33,4 @@ body {
 }
 .hint { display: flex; gap: 1rem; justify-content: center; opacity: 0.6; font-size: clamp(0.9rem, 1.8vw, 1.2rem); }
 #status { opacity: 1; }
+.fatal { color: #ff6b6b; font-size: 1.2rem; text-align: center; max-width: 60ch; }

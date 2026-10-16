@@ -8,7 +8,9 @@ export interface StreamingApp {
 // Para adicionar um serviço novo, inclua uma linha aqui.
 // O launcher (/tv), o controle (/controle), o agente e a extensão leem esta lista.
 export const STREAMING_APPS: StreamingApp[] = [
-  { id: "youtube", name: "YouTube", url: "https://www.youtube.com/tv", color: "#FF0000" },
+  // youtube.com/tv was discontinued for desktop browsers (shows a redirect
+  // interstitial instead of the TV interface), so the regular site is used.
+  { id: "youtube", name: "YouTube", url: "https://www.youtube.com", color: "#FF0000" },
   { id: "netflix", name: "Netflix", url: "https://www.netflix.com", color: "#E50914" },
   // HBO Max migrou para "Max" (https://www.max.com) em 2023-2024.
   // No Brasil a marca voltou a "HBO Max" em 2025 (https://www.hbomax.com).

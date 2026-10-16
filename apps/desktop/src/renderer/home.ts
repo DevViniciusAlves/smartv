@@ -3,16 +3,44 @@
 // eslint-disable-next-line @typescript-eslint/triple-slash-reference
 /// <reference path="./smartv.d.ts" />
 
+export {};
+
 const grid = document.getElementById("cards") as HTMLElement;
+
+// The bridge is injected by the preload script. If it is missing (stale
+// build, broken preload), the UI must say so instead of dying silently:
+// clock, keyboard and mouse keep working.
+function bridge(): Window["smartv"] | null {
+  return typeof window.smartv === "object" && window.smartv !== null ? window.smartv : null;
+}
+
+function showFatal(text: string): void {
+  grid.innerHTML = "";
+  const p = document.createElement("p");
+  p.className = "fatal";
+  p.textContent = text;
+  grid.appendChild(p);
+  cards = [];
+}
 let apps: Array<{ id: string; name: string; color: string }> = [];
 let focusIndex = 0;
 let cards: HTMLElement[] = [];
 
 async function load(): Promise<void> {
+  const api = bridge();
+  if (!api) {
+    showFatal("Falha na ponte com o aplicativo. Reconstrua (npm run build -w apps/desktop) e reinicie.");
+    return;
+  }
   try {
-    apps = await window.smartv.getApps();
+    apps = await api.getApps();
   } catch {
-    apps = [];
+    showFatal("Não foi possível carregar os serviços. Reinicie o aplicativo.");
+    return;
+  }
+  if (apps.length === 0) {
+    showFatal("Nenhum serviço configurado.");
+    return;
   }
   render();
 }
@@ -42,8 +70,9 @@ function setFocus(i: number): void {
 
 async function openApp(i: number): Promise<void> {
   const app = apps[i];
-  if (!app) return;
-  const res = await window.smartv.openApp(app.id);
+  const api = bridge();
+  if (!app || !api) return;
+  const res = await api.openApp(app.id);
   if (!res.ok) {
     const st = document.getElementById("status");
     if (st) st.textContent = "Não foi possível abrir. Tente de novo.";
@@ -61,7 +90,7 @@ document.addEventListener("keydown", (e: KeyboardEvent) => {
   }
 });
 
-window.smartv.onStatus((text: string) => {
+bridge()?.onStatus((text: string) => {
   const st = document.getElementById("status");
   if (st) st.textContent = text;
 });

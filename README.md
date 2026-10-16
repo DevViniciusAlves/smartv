@@ -157,11 +157,10 @@ em `apps/extension/src/adapters.ts` e as URLs em `manifest.json`.
 **HBO:** o serviço migrou entre `hbomax.com` e `max.com`; o padrão aqui é `https://www.hbomax.com`.
 Se a sua conta usa `max.com`, troque a URL na config.
 
-**YouTube:** o padrão é `https://www.youtube.com/tv` (interface feita para setas), mas **ainda
-não foi testado no Edge desktop** — se for redirecionado para o YouTube normal ou exigir
-user-agent de TV, troque a URL para `https://www.youtube.com` em `packages/shared/src/apps.ts`
-e use atalhos de teclado + extensão de foco. Não há troca automática de user-agent.
- Veja o checklist manual abaixo.
+**YouTube:** o padrão agora é `https://www.youtube.com` em `packages/shared/src/apps.ts`.
+Comprovado por screenshot no Chromium desktop: o `youtube.com/tv` foi descontinuado
+para navegadores desktop e mostra só um interstitial "Vamos direcionar você para
+o youtube.com". Não há troca automática de user-agent.
 
 ## Solução de problemas
 
@@ -210,7 +209,7 @@ dos comandos, nunca o conteúdo).
 
 - Render gratuito dorme; a primeira conexão do dia pode levar ~1 min.
 - Netflix/HBO/Disney+ em navegador podem limitar resolução (sem app nativo/DRM total).
-- `youtube.com/tv` ainda não testado no Edge desktop; fallback documentado acima.
+- YouTube abre o site normal (o `/tv` foi descontinuado no desktop; comprovado).
 - Overlay da extensão (relógio + Início) não aparece com vídeo em tela cheia; sem indicador
   de volume no overlay (a extensão não tem canal com o agente; o Windows já mostra o próprio).
 - Volume controla o Windows/HDMI, não o infravermelho da TV.
@@ -225,7 +224,7 @@ Itens que dependem de Windows/Edge reais e precisam ser conferidos no PC da TV:
 - [ ] `http://127.0.0.1:9222/json/version` responde no PC (CDP só local, com o perfil dedicado).
 - [ ] Se a porta CDP for recusada, o fallback (`Ctrl+L` + colar, ou respawn) assume sozinho e o log registra.
 - [ ] No modo `app`, a janela vai para o monitor certo e entra em tela cheia.
-- [ ] `youtube.com/tv` abre e responde às setas; se não, trocar para `youtube.com` normal.
+- [ ] YouTube abre o site normal e responde às setas via extensão de foco.
 - [ ] Link com `target=_blank` nos streamings abre na mesma aba.
 - [ ] Overlay (relógio + Início) aparece ao mexer o mouse/setas e some em ~4 s; botão Início volta ao launcher.
 - [ ] Play/Pause, ±10 s, Enter, Voltar e Próximo funcionam com o backend nut-js **e** com o PowerShell
