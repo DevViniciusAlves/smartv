@@ -139,17 +139,6 @@ export class BraveManager {
       this.conn = conn;
       this.sessionId = sessionId;
       this.targetId = targetId;
-      // Brave can still create a second page target for links opened by a
-      // site (or by a native window.open call). SmartTV has one controlled
-      // surface, so keep the original target and close those extra tabs.
-      await this.conn.send("Target.setDiscoverTargets", { discover: true });
-      this.conn.on("Target.targetCreated", (params) => {
-        const info = params.targetInfo as { targetId?: string; type?: string } | undefined;
-        if (info?.type !== "page" || !info.targetId || info.targetId === this.targetId) return;
-        void this.conn
-          ?.send("Target.closeTarget", { targetId: info.targetId })
-          .catch((err) => this.deps.log(`[smartv-brave] extra tab closed: ${err.message}`));
-      });
       await this.injectNavigation();
       await this.rememberWindowId();
       this.visible = true;
@@ -325,10 +314,14 @@ function prepareWidevineProfile(userDataDir: string, env: Record<string, string 
   if (!userDataDir || process.platform !== "win32") return;
   const localAppData = env.LOCALAPPDATA;
   if (!localAppData) return;
-  const source = path.join(localAppData, "BraveSoftware", "Brave-Browser", "User Data", "WidevineCdm");
+    const sources = [
+      path.join(localAppData, "Google", "Chrome", "User Data", "WidevineCdm"),
+      path.join(localAppData, "BraveSoftware", "Brave-Browser", "User Data", "WidevineCdm"),
+    ];
+    const source = sources.find((candidate) => fs.existsSync(candidate));
   const destination = path.join(userDataDir, "WidevineCdm");
   try {
-    if (!fs.existsSync(source)) return;
+    if (!source) return;
     fs.mkdirSync(userDataDir, { recursive: true });
     fs.cpSync(source, destination, { recursive: true, force: true });
   } catch (err) {

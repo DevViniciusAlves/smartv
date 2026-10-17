@@ -18,12 +18,12 @@ describe("findBraveExecutable", () => {
     const found = findBraveExecutable("win32", WIN_ENV, (p) =>
       p.includes("Program Files") || p.includes("brave.exe"),
     );
-    expect(found).toBe("C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe");
+    expect(found).toBe("C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe");
   });
 
   it("falls back to the per-user install", () => {
     const found = findBraveExecutable("win32", WIN_ENV, (p) => p.includes("AppData\\Local"));
-    expect(found).toContain("AppData\\Local\\BraveSoftware");
+    expect(found).toContain("AppData\\Local\\Google\\Chrome");
   });
 
   it("returns null when Brave is not installed", () => {

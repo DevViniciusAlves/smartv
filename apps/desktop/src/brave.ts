@@ -18,6 +18,12 @@ export function braveCandidates(platform: string, env: Record<string, string | u
   const home = env.HOME ?? env.USERPROFILE;
   if (platform === "win32") {
     return [
+      // HBO Max and Netflix officially support Chrome/Edge on Windows. Use
+      // Chrome first; Brave's UA/privacy changes can be rejected as an
+      // unsupported browser even when Widevine is present.
+      "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+      "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      ...(local ? [`${local}\\Google\\Chrome\\Application\\chrome.exe`] : []),
       "C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe",
       "C:\\Program Files (x86)\\BraveSoftware\\Brave-Browser\\Application\\brave.exe",
       ...(local ? [`${local}\\BraveSoftware\\Brave-Browser\\Application\\brave.exe`] : []),

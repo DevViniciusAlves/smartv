@@ -4,6 +4,7 @@ import os from "node:os";
 import { execFile } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { app, BrowserWindow, WebContentsView, ipcMain, session, screen, type WebContents, type BrowserWindowConstructorOptions } from "electron";
+import * as electronRuntime from "electron";
 import { STREAMING_APPS, controllerMessageSchema } from "@smartv/shared";
 import type { ControllerMessage } from "@smartv/shared";
 import { appUrl, isAllowedAppId, isAllowedNavigation } from "./security.js";
@@ -27,8 +28,6 @@ import { describeAction, systemScriptFor } from "./command-runner.js";
 import { ElectronBlocker } from "@ghostery/adblocker-electron";
 import {
   BraveManager,
-  braveUserDataDir,
-  defaultPreloadPath,
 } from "./brave-manager.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -82,17 +81,8 @@ let linkedPhones = 0;
 // until the phone opens one, and the manager is null when Brave is absent.
 let brave: BraveManager | null = null;
 let braveEnabled = false;
-
-/** Lazily resolves Brave. Returns the manager, or null when not installed. */
-function ensureBrave(): BraveManager | null {
-  if (!brave) {
-    brave = new BraveManager({
-      userDataDir: braveUserDataDir(app.getPath("userData")),
-      preloadPath: defaultPreloadPath(DIST),
-      log: (line) => console.log(line),
-    });
-  }
-  return brave.resolveExecutable() ? brave : null;
+function usesDrmRenderer(): boolean {
+  return false;
 }
 
 function pushRemoteStatus(text: string): void {
@@ -185,7 +175,7 @@ function runRemoteCommand(msg: ControllerMessage): void {
   }
   if (action.kind === "media-play" || action.kind === "media-pause") {
     const method = action.kind === "media-play" ? "play" : "pause";
-    if (braveEnabled && brave?.isShowing()) {
+    if (usesDrmRenderer() && brave?.isShowing()) {
       void brave.playPause(method).catch(() => undefined);
       return;
     }
@@ -199,7 +189,7 @@ function runRemoteCommand(msg: ControllerMessage): void {
     return;
   }
   if (action.kind === "press") {
-    if (braveEnabled && brave?.isShowing()) {
+    if (usesDrmRenderer() && brave?.isShowing()) {
       void brave.dispatchKeys(action.events).catch((err: unknown) =>
         console.warn(`[smartv] brave input failed: ${(err as Error).message}`),
       );
@@ -334,7 +324,7 @@ function layout(): void {
   const content = { x: 0, y: BAR_H, width, height: height - BAR_H };
   // With Brave in front, the built-in service view stays collapsed: the real
   // window is Brave's, and keeping a second copy loaded would waste memory.
-  if (router.snapshot().surface === "service" && !braveEnabled) {
+  if (router.snapshot().surface === "service" && !usesDrmRenderer()) {
     homeView.setBounds({ x: 0, y: 0, width: 0, height: 0 });
     serviceView.setBounds(content);
   } else {
@@ -351,7 +341,7 @@ function layout(): void {
 // Whether the visible surface has somewhere to go "back" to. Home is the root,
 // so Back is only offered while a streaming app is open.
 function canGoBack(): boolean {
-  if (braveEnabled && brave?.isShowing()) return true;
+  if (usesDrmRenderer() && brave?.isShowing()) return true;
   try {
     if (router.snapshot().surface !== "service" || !serviceView) return false;
     return serviceView.webContents.navigationHistory.canGoBack();
@@ -365,7 +355,7 @@ function pushCanGoBack(): void {
 }
 
 function goBack(): { ok: boolean; error?: string } {
-  if (braveEnabled && brave?.isShowing()) {
+  if (usesDrmRenderer() && brave?.isShowing()) {
     void brave
       .goBack()
       .then((went) => {
@@ -413,24 +403,6 @@ function showHome(): void {
 function openService(id: string): { ok: boolean; error?: string } {
   const url = appUrl(id);
   if (!url) return { ok: false, error: "unknown app" };
-  // Brave first: native Widevine DRM works out of the box. Falls back to the
-  // bundled Electron view when Brave is not installed.
-  const b = braveEnabled ? ensureBrave() : null;
-  if (b) {
-    applyState(router.openApp(id, url));
-    void b.ensureRunning(url).then((ok) => {
-      if (ok) return;
-      // Brave vanished between the check and the launch: use the Electron view.
-      console.warn("[smartv] Brave unavailable, using built-in view");
-      // Brave mode keeps the built-in view collapsed. Switch modes before
-      // loading the fallback, otherwise the page loads behind the Home view
-      // and the remote appears stuck on "Carregando…".
-      braveEnabled = false;
-      layout();
-      serviceView?.webContents.loadURL(url).catch(() => undefined);
-    });
-    return { ok: true };
-  }
   if (!serviceView) return { ok: false, error: "unknown app" };
   applyState(router.openApp(id, url));
   serviceView.webContents.loadURL(url).catch((err: unknown) => {
@@ -847,6 +819,15 @@ async function main(): Promise<void> {
   });
   registerIpc();
   await app.whenReady();
+  const components = (electronRuntime as unknown as {
+    components?: { whenReady(): Promise<void>; status?(): unknown };
+  }).components;
+  if (components) {
+    await components.whenReady();
+    console.log(`[smartv] Widevine components ready: ${String(components.status?.() ?? "ok")}`);
+  } else {
+    console.warn("[smartv] Castlabs components API unavailable; DRM cannot be guaranteed");
+  }
   screen.on("display-removed", (_event, removedDisplay) => {
     if (loadStoredDisplayId(app.getPath("userData")) === removedDisplay.id) {
       clearStoredDisplayId(app.getPath("userData"));
@@ -858,11 +839,10 @@ async function main(): Promise<void> {
     // agent needed). Shot mode stays offline: no network from diagnostics.
     if (!SHOT_PNG) {
       startEmbeddedAgent();
-      // Brave renders streaming services when installed (native Widevine DRM).
-      braveEnabled = ensureBrave() !== null;
-      console.log(
-        `[smartv] DRM renderer: ${braveEnabled ? "Brave (native Widevine)" : "built-in view (no Brave found)"}`,
-      );
+      // HBO/Netflix use the Castlabs Electron renderer above; no external
+      // browser window is used for DRM anymore.
+      braveEnabled = false;
+      console.log("[smartv] DRM renderer: Castlabs Electron + Widevine");
     }
   } catch (err) {
     console.error(`[smartv] startup failed: ${(err as Error).message}`);
