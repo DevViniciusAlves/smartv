@@ -79,7 +79,7 @@ let linkedPhones = 0;
 // Brave renders the streaming services when installed (native Widevine DRM for
 // HBO Max / Netflix with zero setup). It is created lazily: apps stay closed
 // until the phone opens one, and the manager is null when Brave is absent.
-let brave: BraveManager | null = null;
+const brave: BraveManager | null = null;
 let braveEnabled = false;
 function usesDrmRenderer(): boolean {
   return false;
