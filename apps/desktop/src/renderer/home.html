@@ -13,7 +13,15 @@
       <div class="clock"><span id="clock">--:--</span><span id="date"></span></div>
     </header>
     <main id="cards" class="cards" aria-label="Serviços"></main>
-    <footer class="hint"><span id="status"></span><span>Use as setas e Enter • Esc volta aqui</span></footer>
+    <footer class="hint">
+      <span id="status"></span>
+      <div id="updateControls" class="hidden">
+        <button id="btnCheck">Verificar atualização</button>
+        <button id="btnDownload" class="hidden">Baixar atualização</button>
+        <button id="btnRestart" class="hidden">Reiniciar e atualizar</button>
+      </div>
+      <span>Use as setas e Enter • Esc volta aqui</span>
+    </footer>
   </div>
   <script type="module" src="./home.ts"></script>
 </body>

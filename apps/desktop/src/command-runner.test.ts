@@ -4,7 +4,7 @@ import { describeAction, systemScriptFor } from "./command-runner.js";
 describe("describeAction", () => {
   it("maps home/back to native navigation", () => {
     expect(describeAction({ type: "key", key: "home" })).toEqual({ kind: "go-home" });
-    expect(describeAction({ type: "key", key: "back" }).kind).toBe("press");
+    expect(describeAction({ type: "key", key: "back" })).toEqual({ kind: "go-back" });
     expect(describeAction({ type: "app", id: "youtube" })).toEqual({
       kind: "open-app",
       id: "youtube",

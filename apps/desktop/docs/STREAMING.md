@@ -18,7 +18,7 @@ proprietários. "A página abriu" ≠ "o vídeo toca". A matriz distingue 7 nív
 |---|---|---|---|---|---|
 | 1 | Página inicial carrega | esperado ✅ (a testar) | esperado ✅ | esperado ✅ | esperado ✅ |
 | 2 | Login/sessão persistente | esperado ✅ | esperado ✅ | esperado ✅ | esperado ✅ |
-| 3 | Navegação por teclado | esperado ✅ | parcial ⚠️ (site feito p/ mouse) | parcial ⚠️ | parcial ⚠️ |
+| 3 | Navegação por teclado | esperado ✅ | melhorada ⚠️ (foco espacial, a testar) | melhorada ⚠️ | melhorada ⚠️ |
 | 4 | Vídeo não-protegido toca | esperado ✅ | n/a | n/a | n/a |
 | 5 | DRM (Widevine) | n/a | **bloqueado** ❌ | **bloqueado** ❌ | **bloqueado** ❌ |
 | 6 | Tela cheia c/ áudio | esperado ✅ | bloqueado por 5 | bloqueado por 5 | bloqueado por 5 |
@@ -28,6 +28,29 @@ Motivo de 5: builds oficiais do Electron **não incluem o CDM Widevine**
 (componente proprietário Google, licenciado por integrador). Youtube usa
 stream progressivo/WebM sem DRM na maioria dos vídeos → deve funcionar.
 Erros típicos esperados: Netflix `M7701`/`M7121`, equivalentes nos demais.
+
+## Navegação por foco (controle remoto)
+
+As páginas de streaming são sites feitos para mouse/teclado. Para o D-pad do
+celular se comportar como um controle de TV, o `serviceView` recebe um preload
+próprio (`apps/desktop/src/service-preload.ts`) que:
+
+- intercepta as setas e move o foco entre os elementos focáveis da página
+  usando geometria (o mais próximo naquela direção, priorizando alinhamento);
+- mostra um anel de foco visível (`smartv-focused`);
+- ativa o elemento focado com **Enter**;
+- **não** interfere enquanto um `<video>` está reproduzindo, preservando o
+  comportamento nativo das setas (seek) — mesma heurística da extensão Edge
+  (`apps/extension/src/content.ts`).
+
+Os seletores por serviço ficam em `SITE_SELECTORS` (mirror dos adaptadores da
+extensão). É um preload **sem ponte**: nada de `window.smartv`/IPC para páginas
+remotas. Ainda depende de validação manual por serviço (nível 3 acima).
+
+O botão **Voltar** do controle usa o histórico da página (volta uma tela do
+serviço) e, sem histórico, retorna à Home — mais próximo de um controle real
+do que o antigo `Esc` fixo.
+
 
 ## Alternativas avaliadas
 

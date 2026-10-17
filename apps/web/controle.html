@@ -19,6 +19,7 @@
       <button id="btnConn" class="btn round" aria-label="Conexão com o SmarTV">🔗</button>
       <button id="btnHome" class="btn round" aria-label="Início">⌂</button>
     </div>
+
     <div id="errorPanel" class="panel error hidden">
       <div id="errorText" class="errText"></div>
       <div class="row">
@@ -26,32 +27,45 @@
         <a id="btnDiag" class="btn link" href="/diag">Verificar conexão</a>
       </div>
     </div>
+
     <div id="apps" class="row apps" aria-label="Serviços"></div>
-    <div class="dpad-wrap">
-      <div class="dpad-side">
-        <button class="btn" data-hold="volume:up">Vol +</button>
-        <button class="btn" data-hold="volume:down">Vol −</button>
-        <button class="btn" data-send='{"type":"volume","action":"mute"}'>Mudo</button>
+
+    <div class="stage">
+      <div class="rocker" role="group" aria-label="Volume">
+        <button class="btn rock" data-hold="volume:up" aria-label="Aumentar volume">Vol +</button>
+        <button class="btn rock" data-send='{"type":"volume","action":"mute"}' aria-label="Mudo">Mudo</button>
+        <button class="btn rock" data-hold="volume:down" aria-label="Diminuir volume">Vol −</button>
       </div>
-      <div class="dpad" role="group" aria-label="Direcional">
-        <button class="btn dup" data-hold="key:up" aria-label="Cima">▲</button>
-        <button class="btn dleft" data-hold="key:left" aria-label="Esquerda">◀</button>
-        <button class="btn dok" data-send='{"type":"key","key":"enter"}' aria-label="OK">OK</button>
-        <button class="btn dright" data-hold="key:right" aria-label="Direita">▶</button>
-        <button class="btn ddown" data-hold="key:down" aria-label="Baixo">▼</button>
+
+      <div class="dial" role="group" aria-label="Direcional">
+        <button class="btn dial-btn dup" data-hold="key:up" aria-label="Cima">▲</button>
+        <button class="btn dial-btn dleft" data-hold="key:left" aria-label="Esquerda">◀</button>
+        <button class="btn dial-btn dok" data-send='{"type":"key","key":"enter"}' aria-label="OK">OK</button>
+        <button class="btn dial-btn dright" data-hold="key:right" aria-label="Direita">▶</button>
+        <button class="btn dial-btn ddown" data-hold="key:down" aria-label="Baixo">▼</button>
       </div>
-      <div class="dpad-side">
-        <button class="btn" data-send='{"type":"media","action":"seekBackward"}'>−10s</button>
-        <button class="btn" data-send='{"type":"media","action":"seekForward"}'>+10s</button>
-        <button class="btn" data-send='{"type":"media","action":"fullscreen"}'>⛶</button>
+
+      <div class="rocker" role="group" aria-label="Mídia">
+        <button class="btn rock" data-send='{"type":"media","action":"seekBackward"}' aria-label="Retroceder 10 segundos">−10s</button>
+        <button class="btn rock" data-send='{"type":"media","action":"playpause"}' aria-label="Reproduzir ou pausar">⏯</button>
+        <button class="btn rock" data-send='{"type":"media","action":"seekForward"}' aria-label="Avançar 10 segundos">+10s</button>
       </div>
     </div>
-    <div class="row mid">
-      <button class="btn" data-send='{"type":"key","key":"back"}'>Voltar</button>
-      <button class="btn" data-send='{"type":"media","action":"playpause"}'>⏯</button>
-      <button id="btnKeyboard" class="btn">Teclado</button>
-      <button id="btnTouch" class="btn">Touch</button>
+
+    <div class="row controls">
+      <button class="btn wide" data-send='{"type":"key","key":"back"}'>↩ Voltar</button>
+      <button class="btn wide" data-send='{"type":"media","action":"fullscreen"}'>⛶ Tela cheia</button>
+      <button id="btnMore" class="btn wide" aria-expanded="false">⋯ Avançado</button>
     </div>
+
+    <div id="morePanel" class="panel hidden">
+      <div class="row">
+        <button id="btnKeyboard" class="btn">⌨ Teclado</button>
+        <button id="btnTouch" class="btn">🖱 Touch</button>
+      </div>
+      <p class="hint">Recursos avançados para quando o serviço exigir digitação ou mouse (ex.: login).</p>
+    </div>
+
     <div id="keyboardPanel" class="panel hidden">
       <input id="kbdInput" type="text" placeholder="Digite e envie…" autocomplete="off" enterkeyhint="search" />
       <div class="row">

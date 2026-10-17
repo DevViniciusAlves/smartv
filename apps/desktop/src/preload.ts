@@ -40,6 +40,10 @@ export interface SmartvApi {
   closeConn(): Promise<void>;
   onPairActive(cb: (on: boolean) => void): () => void;
   quit(): Promise<void>;
+  checkUpdates(): Promise<void>;
+  downloadUpdate(): Promise<void>;
+  restartApp(): Promise<void>;
+  onUpdateEvent(cb: (ev: string) => void): () => void;
 }
 
 const api: SmartvApi = {
@@ -84,6 +88,14 @@ const api: SmartvApi = {
     return () => ipcRenderer.removeListener("smartv:pair-active", listener);
   },
   quit: () => ipcRenderer.invoke("smartv:quit"),
+  checkUpdates: () => ipcRenderer.invoke("smartv:check-updates"),
+  downloadUpdate: () => ipcRenderer.invoke("smartv:download-update"),
+  restartApp: () => ipcRenderer.invoke("smartv:restart-app"),
+  onUpdateEvent: (cb: (ev: string) => void) => {
+    const listener = (_e: unknown, ev: string): void => cb(ev);
+    ipcRenderer.on("smartv:update-event", listener);
+    return () => ipcRenderer.removeListener("smartv:update-event", listener);
+  },
 };
 
 contextBridge.exposeInMainWorld("smartv", api);

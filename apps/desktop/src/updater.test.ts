@@ -1,30 +1,38 @@
-import { describe, expect, it, vi } from "vitest";
-import { initAutoUpdate, statusFor, statusForError, type UpdaterLike } from "./updater.js";
+import { describe, expect, it } from "vitest";
+import {
+  initManualUpdate,
+  statusFor,
+  statusForError,
+  type UpdateEvent,
+  type UpdaterLike,
+} from "./updater.js";
 
-function fakeUpdater(): UpdaterLike & { handlers: Map<string, () => void>; checks: number } {
-  const handlers = new Map<string, () => void>();
-  const fake: UpdaterLike & { handlers: Map<string, () => void>; checks: number } = {
-    autoDownload: false,
-    autoInstallOnAppQuit: false,
-    handlers,
-    checks: 0,
+function fakeUpdater(): {
+  updater: UpdaterLike;
+  handlers: Map<UpdateEvent, (...args: unknown[]) => void>;
+} {
+  const handlers = new Map<UpdateEvent, (...args: unknown[]) => void>();
+  const updater: UpdaterLike = {
+    autoDownload: true,
+    autoInstallOnAppQuit: true,
     on: (ev, cb) => {
-      handlers.set(ev, cb as () => void);
+      handlers.set(ev, cb);
     },
-    checkForUpdates: async () => {
-      fake.checks += 1;
-    },
+    checkForUpdates: async () => undefined,
+    downloadUpdate: async () => undefined,
+    quitAndInstall: () => undefined,
   };
-  return fake;
+  return { updater, handlers };
 }
 
 describe("update statuses", () => {
-  it("maps every event to a PT-BR line", () => {
+  it("maps every event to a PT-BR line (manual policy)", () => {
     expect(statusFor("checking-for-update")).toBe("Verificando atualização…");
-    expect(statusFor("update-available")).toContain("baixando");
-    expect(statusFor("update-downloaded")).toContain("reinicie");
-    expect(statusFor("error")).toContain("Falha");
-    expect(statusFor("update-not-available")).toBe("");
+    expect(statusFor("update-available")).toBe("Atualização disponível.");
+    expect(statusFor("download-progress")).toBe("Baixando atualização…");
+    expect(statusFor("update-downloaded")).toBe("Atualização pronta.");
+    expect(statusFor("update-not-available")).toBe("App atualizado.");
+    expect(statusFor("error")).toBe("Falha ao verificar atualização");
   });
 });
 
@@ -42,49 +50,41 @@ describe("statusForError", () => {
   });
 });
 
-describe("initAutoUpdate", () => {
-  it("enables background download + install on quit, checks once deferred", async () => {
-    vi.useFakeTimers();
-    try {
-      const updater = fakeUpdater();
-      const seen: string[] = [];
-      initAutoUpdate(updater, { onStatus: (t) => seen.push(t), deferMs: 1000, checkIntervalMs: 0 });
-      expect(updater.autoDownload).toBe(true);
-      expect(updater.autoInstallOnAppQuit).toBe(true);
-      expect(updater.checks).toBe(0);
-      await vi.advanceTimersByTimeAsync(1000);
-      expect(updater.checks).toBe(1);
-    } finally {
-      vi.useRealTimers();
-    }
+describe("initManualUpdate", () => {
+  it("disables automatic download and install-on-quit", () => {
+    const { updater } = fakeUpdater();
+    initManualUpdate(updater, { onStatus: () => undefined, onEvent: () => undefined });
+    expect(updater.autoDownload).toBe(false);
+    expect(updater.autoInstallOnAppQuit).toBe(false);
   });
-  it("forwards updater events to status and survives check failures", async () => {
-    vi.useFakeTimers();
-    try {
-      const updater = fakeUpdater();
-      updater.checkForUpdates = async () => {
-        throw new Error("boom");
-      };
-      const seen: string[] = [];
-      initAutoUpdate(updater, { onStatus: (t) => seen.push(t), deferMs: 10, checkIntervalMs: 0 });
-      await vi.advanceTimersByTimeAsync(10);
-      expect(seen).toContain("Falha ao verificar atualização");
-      updater.handlers.get("update-downloaded")?.();
-      expect(seen).toContain("Atualização pronta — reinicie o app para instalar");
-    } finally {
-      vi.useRealTimers();
-    }
+
+  it("forwards every event to onEvent and onStatus", () => {
+    const { updater, handlers } = fakeUpdater();
+    const events: UpdateEvent[] = [];
+    const statuses: string[] = [];
+    initManualUpdate(updater, {
+      onEvent: (e) => events.push(e),
+      onStatus: (t) => statuses.push(t),
+    });
+    handlers.get("checking-for-update")?.();
+    handlers.get("update-available")?.();
+    handlers.get("update-downloaded")?.();
+    expect(events).toEqual(["checking-for-update", "update-available", "update-downloaded"]);
+    expect(statuses).toEqual([
+      "Verificando atualização…",
+      "Atualização disponível.",
+      "Atualização pronta.",
+    ]);
   });
-  it("stop() cancels pending and periodic checks", async () => {
-    vi.useFakeTimers();
-    try {
-      const updater = fakeUpdater();
-      const stop = initAutoUpdate(updater, { onStatus: () => undefined, deferMs: 50, checkIntervalMs: 50 });
-      stop();
-      await vi.advanceTimersByTimeAsync(1000);
-      expect(updater.checks).toBe(0);
-    } finally {
-      vi.useRealTimers();
-    }
+
+  it("reports check failures through statusForError", () => {
+    const { updater, handlers } = fakeUpdater();
+    const statuses: string[] = [];
+    initManualUpdate(updater, {
+      onEvent: () => undefined,
+      onStatus: (t) => statuses.push(t),
+    });
+    handlers.get("error")?.(new Error("HttpError: 404 Not Found"));
+    expect(statuses).toContain("Falha: release não encontrado (repositório privado?)");
   });
 });

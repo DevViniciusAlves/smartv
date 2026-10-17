@@ -7,5 +7,11 @@
     "types": ["node"]
   },
   "include": ["src"],
-  "exclude": ["src/renderer", "src/preload.ts", "src/**/*.test.ts", "vite.renderer.ts"]
+  "exclude": [
+    "src/renderer",
+    "src/preload.ts",
+    "src/service-preload.ts",
+    "src/**/*.test.ts",
+    "vite.renderer.ts"
+  ]
 }

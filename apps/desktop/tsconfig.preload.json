@@ -6,11 +6,11 @@
     "target": "ES2022",
     "outDir": "dist-preload",
     "rootDir": "src",
-    "lib": ["ES2022", "DOM"],
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "types": ["node"],
     "declaration": false,
     "declarationMap": false,
     "sourceMap": false
   },
-  "include": ["src/preload.ts"]
+  "include": ["src/preload.ts", "src/service-preload.ts"]
 }

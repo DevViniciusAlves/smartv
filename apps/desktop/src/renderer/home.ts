@@ -79,8 +79,22 @@ async function openApp(i: number): Promise<void> {
   }
 }
 
+// Columns are derived from the actual layout (how many cards share the first
+// row) instead of a hardcoded breakpoint, so Up/Down move by real rows even if
+// the grid changes.
+function columnCount(): number {
+  if (cards.length === 0) return 1;
+  const firstTop = Math.round(cards[0].getBoundingClientRect().top);
+  let n = 0;
+  for (const c of cards) {
+    if (Math.round(c.getBoundingClientRect().top) !== firstTop) break;
+    n += 1;
+  }
+  return Math.max(1, n);
+}
+
 document.addEventListener("keydown", (e: KeyboardEvent) => {
-  const cols = window.innerWidth > 900 ? 4 : 2;
+  const cols = columnCount();
   switch (e.key) {
     case "ArrowRight": e.preventDefault(); setFocus(focusIndex + 1); break;
     case "ArrowLeft": e.preventDefault(); setFocus(focusIndex - 1); break;
@@ -94,6 +108,40 @@ bridge()?.onStatus((text: string) => {
   const st = document.getElementById("status");
   if (st) st.textContent = text;
 });
+
+// Update management
+const updateControls = document.getElementById("updateControls") as HTMLElement;
+const btnCheck = document.getElementById("btnCheck") as HTMLButtonElement;
+const btnDownload = document.getElementById("btnDownload") as HTMLButtonElement;
+const btnRestart = document.getElementById("btnRestart") as HTMLButtonElement;
+
+bridge()?.onUpdateEvent?.((ev: string) => {
+  updateControls.classList.remove("hidden");
+  btnCheck.classList.add("hidden");
+  btnDownload.classList.add("hidden");
+  btnRestart.classList.add("hidden");
+
+  switch (ev) {
+    case "update-available":
+      btnDownload.classList.remove("hidden");
+      break;
+    case "update-downloaded":
+      btnRestart.classList.remove("hidden");
+      break;
+    case "checking-for-update":
+      break;
+    default:
+      btnCheck.classList.remove("hidden");
+      break;
+  }
+});
+
+btnCheck.addEventListener("click", () => void bridge()?.checkUpdates());
+btnDownload.addEventListener("click", () => void bridge()?.downloadUpdate());
+btnRestart.addEventListener("click", () => void bridge()?.restartApp());
+
+// Show update controls initially
+updateControls.classList.remove("hidden");
 
 function tick(): void {
   const now = new Date();

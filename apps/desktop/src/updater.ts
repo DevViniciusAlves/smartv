@@ -1,10 +1,7 @@
 // Automatic updates via electron-updater + GitHub Releases.
 //
-// Policy: download in background, install on quit/restart. Never loops,
-// never restarts the app by itself, never breaks offline use: every failure
-// surfaces as a status line and the current version keeps running.
-// Only GitHub Releases of this repo are ever consulted (publish config in
-// electron-builder.yml); arbitrary URLs/installers are never executed.
+// Policy: Check manually, download on demand, install on demand. Never loops,
+// never restarts the app by itself, never breaks offline use.
 export type UpdateEvent =
   | "checking-for-update"
   | "update-available"
@@ -19,31 +16,27 @@ export interface UpdaterLike {
   autoInstallOnAppQuit: boolean;
   on(event: UpdateEvent, cb: (...args: unknown[]) => void): void;
   checkForUpdates(): Promise<unknown>;
+  downloadUpdate(): Promise<unknown>;
+  quitAndInstall(): void;
 }
 
 export interface UpdateOptions {
   onStatus(text: string): void;
-  // Delay before the first check so boot stays fast.
-  deferMs?: number;
-  // Interval between background checks. 0 disables repetition.
-  checkIntervalMs?: number;
+  onEvent(event: UpdateEvent): void;
 }
-
-const DEFAULT_DEFER_MS = 15000;
-const DEFAULT_INTERVAL_MS = 6 * 60 * 60 * 1000;
 
 export function statusFor(event: UpdateEvent): string {
   switch (event) {
     case "checking-for-update":
       return "Verificando atualização…";
     case "update-available":
-      return "Atualização disponível, baixando…";
+      return "Atualização disponível.";
     case "download-progress":
       return "Baixando atualização…";
     case "update-downloaded":
-      return "Atualização pronta — reinicie o app para instalar";
+      return "Atualização pronta.";
     case "update-not-available":
-      return "";
+      return "App atualizado.";
     case "error":
       return "Falha ao verificar atualização";
   }
@@ -62,20 +55,9 @@ export function statusForError(err: unknown): string {
   return statusFor("error");
 }
 
-export function initAutoUpdate(updater: UpdaterLike, opts: UpdateOptions): () => void {
-  const deferMs = opts.deferMs ?? DEFAULT_DEFER_MS;
-  const intervalMs = opts.checkIntervalMs ?? DEFAULT_INTERVAL_MS;
-  updater.autoDownload = true;
-  updater.autoInstallOnAppQuit = true;
-
-  let stopped = false;
-  const reportError = (err: unknown): void => {
-    if (!stopped) opts.onStatus(statusForError(err));
-  };
-  const safeCheck = (): void => {
-    if (stopped) return;
-    updater.checkForUpdates().catch(reportError);
-  };
+export function initManualUpdate(updater: UpdaterLike, opts: UpdateOptions): void {
+  updater.autoDownload = false;
+  updater.autoInstallOnAppQuit = false;
 
   const events: UpdateEvent[] = [
     "checking-for-update",
@@ -87,18 +69,8 @@ export function initAutoUpdate(updater: UpdaterLike, opts: UpdateOptions): () =>
   ];
   for (const ev of events) {
     updater.on(ev, (...args: unknown[]) => {
-      if (stopped) return;
+      opts.onEvent(ev);
       opts.onStatus(ev === "error" ? statusForError(args[0]) : statusFor(ev));
     });
   }
-
-  const first = setTimeout(safeCheck, deferMs);
-  const timer = intervalMs > 0 ? setInterval(safeCheck, intervalMs) : null;
-  if (timer) timer.unref?.();
-
-  return () => {
-    stopped = true;
-    clearTimeout(first);
-    if (timer) clearInterval(timer);
-  };
 }

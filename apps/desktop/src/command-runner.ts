@@ -26,6 +26,7 @@ export interface KeyEventLike {
 
 export type SurfaceAction =
   | { kind: "go-home" }
+  | { kind: "go-back" }
   | { kind: "open-app"; id: string }
   | { kind: "press"; events: KeyEventLike[] }
   | { kind: "system"; scriptKind: SystemScriptKind; step?: number; dx?: number; dy?: number }
@@ -54,7 +55,6 @@ const KEY_TO_CODE: Record<string, string> = {
   left: "Left",
   right: "Right",
   enter: "Enter",
-  esc: "Escape",
   space: "Space",
   backspace: "Backspace",
   f: "F",
@@ -65,7 +65,7 @@ export function describeAction(msg: ControllerMessage): SurfaceAction {
   switch (msg.type) {
     case "key":
       if (msg.key === "home") return { kind: "go-home" };
-      if (msg.key === "back") return { kind: "press", events: press(KEY_TO_CODE.esc) };
+      if (msg.key === "back") return { kind: "go-back" };
       return { kind: "press", events: press(KEY_TO_CODE[msg.key] ?? "Enter") };
     case "media":
       if (msg.action === "playpause") return { kind: "press", events: press("Space") };

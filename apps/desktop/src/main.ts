@@ -8,7 +8,7 @@ import { STREAMING_APPS, controllerMessageSchema } from "@smartv/shared";
 import type { ControllerMessage } from "@smartv/shared";
 import { appUrl, isAllowedAppId, isAllowedNavigation } from "./security.js";
 import { parseCdpPort } from "./cdp.js";
-import { initAutoUpdate, type UpdaterLike } from "./updater.js";
+import { initManualUpdate, type UpdaterLike } from "./updater.js";
 // electron-updater is CommonJS without detectable named exports once packed
 // inside app.asar, so the default import + destructure is required here.
 import updaterPkg from "electron-updater";
@@ -138,6 +138,12 @@ function runRemoteCommand(msg: ControllerMessage): void {
   if (action.kind === "ignore") return;
   if (action.kind === "go-home") {
     showHome();
+    return;
+  }
+  if (action.kind === "go-back") {
+    // Real remote semantics: leave the current page first, then Home.
+    if (connOpen) closeConn();
+    else goBack();
     return;
   }
   if (action.kind === "open-app") {
@@ -533,8 +539,16 @@ async function createWindow(): Promise<void> {
   homeView = new WebContentsView({
     webPreferences: { ...COMMON_WEB_PREFS, preload: distFile("preload.cjs"), ...shotPrefs },
   });
+  // The streaming view gets its OWN, bridge-less preload that turns the phone's
+  // D-pad into a real focus navigation ring (see service-preload.ts). It never
+  // exposes window.smartv, so remote pages stay untrusted.
   serviceView = new WebContentsView({
-    webPreferences: { ...COMMON_WEB_PREFS, partition: SERVICE_PARTITION, ...shotPrefs },
+    webPreferences: {
+      ...COMMON_WEB_PREFS,
+      partition: SERVICE_PARTITION,
+      preload: distFile("service-preload.cjs"),
+      ...shotPrefs,
+    },
   });
   pairView = new WebContentsView({
     webPreferences: { ...COMMON_WEB_PREFS, preload: distFile("preload.cjs"), ...shotPrefs },
@@ -564,7 +578,13 @@ async function createWindow(): Promise<void> {
   // Updates only make sense in the installed app: dev runs have no Releases
   // metadata and must never phone home.
   if (app.isPackaged && !SHOT_PNG) {
-    initAutoUpdate(autoUpdater, { onStatus: setStatus });
+    initManualUpdate(autoUpdater, {
+      onStatus: setStatus,
+      onEvent: (ev) => {
+        barView?.webContents.send("smartv:update-event", ev);
+        homeView?.webContents.send("smartv:update-event", ev);
+      },
+    });
   }
   if (SHOT_PNG) {
     // Lets the renderer boot, then captures and quits.
@@ -628,6 +648,15 @@ function registerIpc(): void {
   });
   ipcMain.handle("smartv:quit", () => {
     quitAppGracefully();
+  });
+  ipcMain.handle("smartv:check-updates", () => {
+    return autoUpdater.checkForUpdates();
+  });
+  ipcMain.handle("smartv:download-update", () => {
+    return autoUpdater.downloadUpdate();
+  });
+  ipcMain.handle("smartv:restart-app", () => {
+    autoUpdater.quitAndInstall();
   });
 }
 

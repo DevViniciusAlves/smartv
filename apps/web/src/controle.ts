@@ -530,6 +530,17 @@ document.querySelectorAll<HTMLElement>("[data-hold]").forEach((el) => {
   });
 }
 
+// Painel avançado: Teclado e Touch ficam recolhidos por padrão para o controle
+// parecer (e funcionar) como um controle de TV de verdade.
+{
+  const more = document.getElementById("btnMore") as HTMLElement;
+  const panel = document.getElementById("morePanel") as HTMLElement;
+  more.addEventListener("click", () => {
+    const hidden = panel.classList.toggle("hidden");
+    more.setAttribute("aria-expanded", hidden ? "false" : "true");
+  });
+}
+
 // Ao voltar do segundo plano (iOS inclusive): recria a conexão, sem confiar
 // no readyState do socket antigo. Sem credencial, não há o que reconectar.
 document.addEventListener("visibilitychange", () => {

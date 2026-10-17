@@ -31,6 +31,10 @@ body {
   box-shadow: 0 0 0 0.4vmin var(--brand, #fff), 0 0 4vmin rgba(255,255,255,0.25);
   outline: none;
 }
-.hint { display: flex; gap: 1rem; justify-content: center; opacity: 0.6; font-size: clamp(0.9rem, 1.8vw, 1.2rem); }
+.hint { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; justify-content: center; opacity: 0.6; font-size: clamp(0.9rem, 1.8vw, 1.2rem); }
+#updateControls { display: flex; gap: 1rem; }
+#updateControls.hidden { display: none; }
+#updateControls button { padding: 0.5rem 1rem; cursor: pointer; }
+#updateControls button.hidden { display: none; }
 #status { opacity: 1; }
 .fatal { color: #ff6b6b; font-size: 1.2rem; text-align: center; max-width: 60ch; }
