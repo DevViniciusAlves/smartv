@@ -20,7 +20,7 @@ import {
   resolveRemoteConfig,
   maskToken,
 } from "./remote-config.js";
-import { loadStoredRemoteConfig, saveStoredRemoteConfig, getOrCreateInstallationId } from "./remote-store.js";
+import { loadStoredRemoteConfig, saveStoredRemoteConfig, getOrCreateInstallationId, loadStoredDisplayId, saveStoredDisplayId, clearStoredDisplayId } from "./remote-store.js";
 import { DEFAULT_BACKEND_URL, DEFAULT_AGENT_TOKEN } from "./defaults.js";
 import { EmbeddedAgent } from "./remote-agent.js";
 import { describeAction, systemScriptFor } from "./command-runner.js";
@@ -72,8 +72,8 @@ let lastSurface: Surface | null = null;
 let remoteAgent: EmbeddedAgent | null = null;
 let remoteStatusText = "Controle: não configurado";
 // Tri-state link for the Conexão modal (shared vocabulary with /controle).
-// DESCONECTADO: no link. CONECTANDO: socket opening/hello. CONECTADO: the
-// server accepted us as agent (phone pairing is counted separately below).
+// DESCONECTADO: no controller is connected. CONECTANDO: the agent socket is
+// opening/reconnecting. CONECTADO: at least one controller is really linked.
 let remoteLink: "DESCONECTADO" | "CONECTANDO" | "CONECTADO" = "DESCONECTADO";
 let linkedPhones = 0;
 
@@ -243,7 +243,12 @@ function startEmbeddedAgent(): void {
     onStatus: (text) => {
       pushRemoteStatus(text);
       // Derive the tri-state link from the status line the agent reports.
-      if (text.startsWith("Controle: online")) setRemoteLink("CONECTADO");
+      // "online" only means that the PC agent reached the relay. It does not
+      // mean that a phone/controller is connected; presence below is the
+      // source of truth for the user-facing connection tag.
+      if (text.startsWith("Controle: online")) {
+        setRemoteLink(linkedPhones > 0 ? "CONECTADO" : "DESCONECTADO");
+      }
       else if (text.startsWith("Controle: conectando")) setRemoteLink("CONECTANDO");
       else if (text.startsWith("Controle: reconectando")) setRemoteLink("CONECTANDO");
       else if (text.startsWith("Controle: não configurado")) setRemoteLink("DESCONECTADO");
@@ -258,6 +263,7 @@ function startEmbeddedAgent(): void {
     onPairCode: pushPairCode,
     onPresence: (n) => {
       linkedPhones = n;
+      setRemoteLink(n > 0 ? "CONECTADO" : "DESCONECTADO");
       pushRemoteLink();
       console.log(`[smartv-remote] linked phones: ${n}`);
     },
@@ -622,6 +628,12 @@ async function createWindow(): Promise<void> {
     title: "SmartTV",
     webPreferences: { ...COMMON_WEB_PREFS },
   });
+  const storedDisplayId = loadStoredDisplayId(app.getPath("userData"));
+  if (storedDisplayId !== null) {
+    const storedDisplay = screen.getAllDisplays().find((d) => d.id === storedDisplayId);
+    if (storedDisplay) win.setBounds(storedDisplay.bounds);
+    else clearStoredDisplayId(app.getPath("userData"));
+  }
   win.on("closed", () => {
     win = null;
     barView = null;
@@ -769,7 +781,9 @@ function registerIpc(): void {
   });
   ipcMain.handle("smartv:set-display", (_e, displayId: number) => {
     const displays = screen.getAllDisplays();
-    const display = displays.find((d) => d.id === displayId) || displays[0];
+    const display = displays.find((d) => d.id === displayId);
+    if (!display) return;
+    saveStoredDisplayId(app.getPath("userData"), display.id);
     if (win) {
       win.setBounds(display.bounds);
       win.setFullScreen(true);
@@ -828,6 +842,11 @@ async function main(): Promise<void> {
   });
   registerIpc();
   await app.whenReady();
+  screen.on("display-removed", (_event, removedDisplay) => {
+    if (loadStoredDisplayId(app.getPath("userData")) === removedDisplay.id) {
+      clearStoredDisplayId(app.getPath("userData"));
+    }
+  });
   try {
     await createWindow();
     // The installed app is itself the controllable device (no standalone
