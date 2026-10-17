@@ -17,7 +17,12 @@
       <div id="connSub" class="sub">Abra no celular para parear.</div>
 
       <div id="pairBlock">
-        <div id="pairCode" class="code" aria-label="Código de pareamento">••••••</div>
+        <div class="code-wrap">
+          <div id="pairCode" class="code" aria-label="Código de pareamento">••••••</div>
+          <button id="pairEye" class="eye" aria-label="Mostrar código" aria-pressed="false" title="Mostrar código">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
         <img id="pairQr" class="qr" alt="QR Code de pareamento" hidden />
         <div class="row between">
           <span id="pairCount" class="count">Gerando código…</span>

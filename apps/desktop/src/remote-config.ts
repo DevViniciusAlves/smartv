@@ -6,12 +6,14 @@
 // hold the room: if the standalone agent (apps/agent) runs with the same
 // AGENT_TOKEN, the server kicks the older one (4400) and both flap.
 //
-// Priority (first non-empty wins):
+// Priority (first non-empty wins, per field):
 //   CLI  --smartv-backend=<wss://host/ws>  --smartv-agent-token=<token>
 //        --smartv-remote-off  (forces the embedded agent off, e.g. Edge mode)
 //   env  SMARTV_BACKEND_URL / BACKEND_URL, SMARTV_AGENT_TOKEN / AGENT_TOKEN
 //   file %AppData%/SmartTV/smartv-remote.json  { backendUrl, agentToken }
-//        (written by the in-app ⚙ Controle panel; never logged with the token)
+//        (written by the in-app Conexão panel; never logged with the token)
+//   default  build-time baked-in values (src/defaults.ts, filled by CI) so a
+//        released install connects with ZERO configuration.
 //
 // This module is pure (no Electron import) so it is unit-tested.
 
@@ -24,7 +26,7 @@ export interface ResolvedRemoteConfig {
   enabled: boolean;
   backendUrl: string;
   agentToken: string;
-  source: "cli" | "env" | "file" | "none";
+  source: "cli" | "env" | "file" | "default" | "none";
   disabledByFlag: boolean;
 }
 
@@ -72,6 +74,7 @@ export function resolveRemoteConfig(
   argv: string[],
   env: Record<string, string | undefined>,
   stored: StoredRemoteConfig,
+  defaults: StoredRemoteConfig = {},
 ): ResolvedRemoteConfig {
   const args = parseRemoteArgs(argv);
   if (args.disabled) {
@@ -101,11 +104,20 @@ export function resolveRemoteConfig(
   }
   const fileBackend = normalizeRemoteUrl(stored.backendUrl);
   const fileToken = (stored.agentToken ?? "").trim();
+  // Anything the user explicitly configured wins; only the missing pieces are
+  // filled from the build-time defaults, so a fresh install just works while a
+  // manual entry (env/CLI/panel) always overrides the baked-in values.
+  const defBackend = normalizeRemoteUrl(defaults.backendUrl);
+  const defToken = (defaults.agentToken ?? "").trim();
+  const backendUrl = fileBackend || defBackend;
+  const agentToken = fileToken || defToken;
+  const source: ResolvedRemoteConfig["source"] =
+    fileBackend || fileToken ? "file" : defBackend || defToken ? "default" : "none";
   return {
-    enabled: Boolean(fileBackend && fileToken),
-    backendUrl: fileBackend,
-    agentToken: fileToken,
-    source: fileBackend || fileToken ? "file" : "none",
+    enabled: Boolean(backendUrl && agentToken),
+    backendUrl,
+    agentToken,
+    source,
     disabledByFlag: false,
   };
 }

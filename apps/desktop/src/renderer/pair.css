@@ -28,10 +28,21 @@ body {
 .pill.on { background: #123d24; border-color: #2ea043; color: #7ee2a8; }
 .pill.mid { background: #3d2f12; border-color: #b8860b; color: #f0c674; }
 .pill.off { background: #3d1518; border-color: #a02e2e; color: #f09393; }
+.code-wrap { position: relative; display: inline-block; }
+.code-wrap .code { padding-right: 44px; }
 .code {
   font-size: 3rem; font-weight: 800; letter-spacing: 0.12em; text-align: center;
   background: #0b0e14; border: 1px solid #3a4358; border-radius: 12px; padding: 8px;
 }
+.code-wrap .eye {
+  position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+  background: #253149; border: 1px solid #3a4358; color: #f2f5fa;
+  width: 32px; height: 32px; border-radius: 8px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; line-height: 1;
+}
+.code-wrap .eye svg { width: 16px; height: 16px; display: block; }
+.code-wrap .eye:hover { background: #3a4358; }
+.code-wrap .eye[aria-pressed="true"] { background: #2e4a7a; border-color: #5a7bb0; }
 .qr { width: 220px; height: 220px; align-self: center; border-radius: 12px; background: #fff; }
 .row { display: flex; gap: 8px; align-items: center; }
 .row.between { justify-content: space-between; }

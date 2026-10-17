@@ -7,6 +7,30 @@ Fluxo suportado pelo CI (`.github/workflows/ci.yml`):
   instalador e publica o GitHub Release com `SmartTV-Setup-*.exe`,
   `latest.yml` e `.blockmap`. Apps instalados atualizam sozinhos ao reiniciar.
 
+## Configuração embutida (PC sem configurar nada)
+
+O app instalado precisa saber o servidor (Render) e o próprio token
+(`AGENT_TOKEN`) para conectar sozinho. Em vez de exigir que o usuário digite
+isso, o build **copia esses valores para dentro do instalador**
+(`src/defaults.ts`, gerado por `scripts/gen-defaults.mjs`). Resultado: o PC
+abre já conectado e o celular só precisa do **código de pareamento**.
+
+Configure **uma vez** no GitHub, em *Settings → Secrets and variables → Actions*:
+
+| Nome | Tipo | Valor |
+|---|---|---|
+| `SMARTV_BACKEND_URL` | **Variable** (não é segredo) | `wss://seu-servico.onrender.com/ws` |
+| `SMARTV_AGENT_TOKEN` | **Secret** | o mesmo `AGENT_TOKEN` do Render |
+
+- O `src/defaults.ts` versionado fica **vazio** de propósito (nada de segredo no
+  repo): o CI sobrescreve só no momento do build. Build local sem essas variáveis
+  continua vazio (nada muda).
+- ⚠️ O token compilado é extraível de um `.exe` público. É o preço do
+  zero-config; se preferir esconder o token, não defina `SMARTV_AGENT_TOKEN` e
+  preencha **Conexão → Configuração avançada** no PC uma vez (fica em
+  `%AppData%/SmartTV`).
+- A URL do servidor não é segredo (o app do celular já a usa via Vercel).
+
 ## Passo a passo (jeito certo, sempre igual)
 
 ```powershell

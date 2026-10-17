@@ -48,6 +48,25 @@ describe("resolveRemoteConfig", () => {
       resolveRemoteConfig([], { SMARTV_BACKEND_URL: "wss://e/ws" }, {}),
     ).toMatchObject({ enabled: false, source: "env" });
   });
+  it("falls back to baked-in defaults for a zero-config install", () => {
+    const baked = { backendUrl: "wss://baked/ws", agentToken: "baked-tok" };
+    const fresh = resolveRemoteConfig([], {}, {}, baked);
+    expect(fresh).toMatchObject({
+      enabled: true,
+      source: "default",
+      backendUrl: "wss://baked/ws",
+      agentToken: "baked-tok",
+    });
+    // Any explicit source still wins; defaults only fill the gaps.
+    expect(
+      resolveRemoteConfig([], {}, { backendUrl: "wss://f/ws", agentToken: "t" }, baked),
+    ).toMatchObject({ enabled: true, source: "file", backendUrl: "wss://f/ws" });
+    expect(resolveRemoteConfig([], {}, { backendUrl: "wss://f/ws" }, baked)).toMatchObject({
+      enabled: true,
+      backendUrl: "wss://f/ws",
+      agentToken: "baked-tok",
+    });
+  });
 });
 
 describe("maskToken", () => {

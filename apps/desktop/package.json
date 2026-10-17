@@ -1,6 +1,6 @@
 {
   "name": "@smartv/desktop",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "private": true,
   "description": "Smart TV desktop app (Electron) for Windows",
   "author": "SmartTV",
@@ -8,7 +8,7 @@
   "main": "dist/main.js",
   "scripts": {
     "dev": "npm run build && electron .",
-    "build": "npm run build -w @smartv/shared && tsc -p tsconfig.json && tsc -p tsconfig.preload.json && node scripts/publish-preload.mjs && vite build --config vite.renderer.ts",
+    "build": "npm run build -w @smartv/shared && node scripts/gen-defaults.mjs && tsc -p tsconfig.json && tsc -p tsconfig.preload.json && node scripts/publish-preload.mjs && vite build --config vite.renderer.ts",
     "start": "electron .",
     "pack": "npm run build && electron-builder --win --x64 --dir",
     "dist": "npm run build && electron-builder --win --x64",

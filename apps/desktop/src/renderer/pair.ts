@@ -69,15 +69,45 @@ async function paintQr(code: string): Promise<void> {
 }
 
 let haveCode = false;
+let visibleCode = "";
+let codeVisible = false;
+
+function eyeOpenSvg(): string {
+  return '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
+}
+function eyeClosedSvg(): string {
+  return '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/><line x1="1" y1="1" x2="23" y2="23"/>';
+}
+
+function setCodeShown(show: boolean): void {
+  const el = document.getElementById("pairCode");
+  if (!el) return;
+  codeVisible = show;
+  el.textContent = codeVisible && visibleCode
+    ? visibleCode.replace(/(\d{3})(\d{3})/, "$1 $2")
+    : "••••••";
+  const btn = document.getElementById("pairEye");
+  if (btn) {
+    const svg = btn.querySelector("svg");
+    if (svg) svg.innerHTML = codeVisible ? eyeOpenSvg() : eyeClosedSvg();
+    btn.setAttribute("aria-pressed", String(codeVisible));
+    btn.setAttribute("aria-label", codeVisible ? "Ocultar código" : "Mostrar código");
+    btn.title = btn.getAttribute("aria-label")!;
+  }
+}
 
 function showCode(code: string, exp: number): void {
-  const el = document.getElementById("pairCode");
-  if (el) el.textContent = code.replace(/(\d{3})(\d{3})/, "$1 $2");
+  visibleCode = code;
+  setCodeShown(true);
   expiresAt = exp;
   haveCode = true;
   void paintQr(code);
   const count = document.getElementById("pairCount");
   if (count) count.textContent = `Expira em ${fmtLeft(exp - Date.now())}`;
+}
+
+function toggleCodeVisibility(): void {
+  setCodeShown(!codeVisible);
 }
 
 function tick(): void {
@@ -182,6 +212,7 @@ bridge()?.onRemoteLink((info) => {
   lastRefreshAt = Date.now();
   void bridge()?.requestPairCode();
 });
+(document.getElementById("pairEye") as HTMLElement).addEventListener("click", toggleCodeVisibility);
 (document.getElementById("remoteSave") as HTMLElement).addEventListener("click", () => {
   const api = bridge();
   if (!api) return;

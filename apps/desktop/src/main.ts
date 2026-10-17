@@ -3,7 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import { execFile } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { app, BrowserWindow, WebContentsView, ipcMain, session } from "electron";
+import { app, BrowserWindow, WebContentsView, ipcMain, session, type WebContents, type BrowserWindowConstructorOptions } from "electron";
 import { STREAMING_APPS, controllerMessageSchema } from "@smartv/shared";
 import type { ControllerMessage } from "@smartv/shared";
 import { appUrl, isAllowedAppId, isAllowedNavigation } from "./security.js";
@@ -21,6 +21,7 @@ import {
   maskToken,
 } from "./remote-config.js";
 import { loadStoredRemoteConfig, saveStoredRemoteConfig, getOrCreateInstallationId } from "./remote-store.js";
+import { DEFAULT_BACKEND_URL, DEFAULT_AGENT_TOKEN } from "./defaults.js";
 import { EmbeddedAgent } from "./remote-agent.js";
 import { describeAction, systemScriptFor } from "./command-runner.js";
 
@@ -36,6 +37,13 @@ const SHOT_PNG = SHOT_ARG ? SHOT_ARG.slice("--smartv-shot=".length) : "";
 // logins survive restarts). One partition for all services, exactly like a
 // single browser profile; services stay isolated per-domain by the platform.
 const SERVICE_PARTITION = "persist:smartv";
+
+// Baked-in server + agent token (filled at build time by scripts/gen-defaults.mjs).
+// Empty in a plain dev build; real values in the released app => zero config.
+const BAKED_DEFAULTS = {
+  backendUrl: DEFAULT_BACKEND_URL,
+  agentToken: DEFAULT_AGENT_TOKEN,
+};
 
 let win: BrowserWindow | null = null;
 let barView: WebContentsView | null = null;
@@ -158,7 +166,7 @@ function runRemoteCommand(msg: ControllerMessage): void {
 function currentRemoteConfig(): { backendUrl: string; agentToken: string; deviceId: string } | null {
   try {
     const stored = loadStoredRemoteConfig(app.getPath("userData"));
-    const resolved = resolveRemoteConfig(process.argv, process.env, stored);
+    const resolved = resolveRemoteConfig(process.argv, process.env, stored, BAKED_DEFAULTS);
     if (!resolved.enabled) return null;
     return {
       backendUrl: resolved.backendUrl,
@@ -202,7 +210,7 @@ function startEmbeddedAgent(): void {
     console.log(`[smartv-remote] configured (source ok, token ${maskToken(cfg.agentToken)})`);
   } else {
     setRemoteLink("DESCONECTADO");
-    console.log("[smartv-remote] not configured: set server + token in the ⚙ Controle panel");
+    console.log("[smartv-remote] not configured: set server + token in Conexão → Configuração avançada");
   }
   remoteAgent.start();
 }
@@ -227,6 +235,17 @@ const COMMON_WEB_PREFS = {
   nodeIntegration: false,
   sandbox: true,
 } as const;
+
+// Sign-in flows open popups (OAuth). They must be real windows with an opener,
+// so window.opener/postMessage works; we keep them sandboxed and guard their
+// navigation with the same allowlist as the service view.
+const POPUP_WINDOW_OPTIONS: BrowserWindowConstructorOptions = {
+  width: 520,
+  height: 720,
+  autoHideMenuBar: true,
+  backgroundColor: "#0b0e14",
+  webPreferences: { ...COMMON_WEB_PREFS },
+};
 
 function distFile(...parts: string[]): string {
   return path.join(DIST, ...parts);
@@ -314,26 +333,39 @@ function openService(id: string): { ok: boolean; error?: string } {
   return { ok: true };
 }
 
-function guardServiceView(view: WebContentsView): void {
-  const wc = view.webContents;
-  // Top-level navigation locked to the allowlist.
+// Allowlist guard shared by the service view and every login popup it opens.
+// Redirects (3xx) are intentionally NOT blocked: auth flows hop through
+// providers and back. Only user/page-initiated top-level navigations and new
+// windows are policed.
+function installNavGuard(wc: WebContents, onEscape: () => void): void {
   wc.on("will-navigate", (e, url) => {
     if (!isAllowedNavigation(url)) {
       e.preventDefault();
       console.warn(`[smartv] blocked navigation: ${url}`);
     }
   });
-  // No new windows: allowlisted destinations reuse the same view.
+  // New windows: allowlisted destinations (and blank OAuth popups) open as a
+  // real, sandboxed child window so window.opener-based sign-in works.
   wc.setWindowOpenHandler(({ url }) => {
-    if (isAllowedNavigation(url)) {
-      wc.loadURL(url).catch((err: unknown) => {
-        console.warn(`[smartv] popup load failed: ${(err as Error).message}`);
-      });
-    } else {
-      console.warn(`[smartv] blocked popup: ${url}`);
+    if (isAllowedNavigation(url) || url === "about:blank") {
+      return { action: "allow", overrideBrowserWindowOptions: POPUP_WINDOW_OPTIONS };
     }
+    console.warn(`[smartv] blocked popup: ${url}`);
     return { action: "deny" };
   });
+  // Guard the popup it just created (recursively), and let Esc close it.
+  wc.on("did-create-window", (child) => {
+    installNavGuard(child.webContents, () => child.close());
+  });
+  wc.on("before-input-event", (_e, input) => {
+    if (input.type === "keyDown" && input.key === "Escape") onEscape();
+  });
+}
+
+function guardServiceView(view: WebContentsView): void {
+  const wc = view.webContents;
+  // Top-level navigation locked to the allowlist; Escape returns Home.
+  installNavGuard(wc, showHome);
   wc.on("did-start-loading", () => applyState(router.onStarted()));
   wc.on("did-stop-loading", () => applyState(router.onStopped()));
   wc.on("did-fail-load", (_e, code, desc, url, isMainFrame) => {
@@ -342,10 +374,6 @@ function guardServiceView(view: WebContentsView): void {
       console.warn(`[smartv] load failed (${code} ${desc}): ${url}`);
     }
     applyState(s);
-  });
-  // Consistent way back: Escape always returns Home.
-  wc.on("before-input-event", (_e, input) => {
-    if (input.type === "keyDown" && input.key === "Escape") showHome();
   });
 }
 
@@ -567,7 +595,7 @@ function registerIpc(): void {
   });
   ipcMain.handle("smartv:get-remote", () => {
     const stored = loadStoredRemoteConfig(app.getPath("userData"));
-    const resolved = resolveRemoteConfig(process.argv, process.env, stored);
+    const resolved = resolveRemoteConfig(process.argv, process.env, stored, BAKED_DEFAULTS);
     return {
       backendUrl: resolved.backendUrl || stored.backendUrl || "",
       hasToken: Boolean(resolved.agentToken),

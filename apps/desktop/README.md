@@ -110,9 +110,13 @@ update) ainda **não** foi testada de ponta a ponta; pendente no PC da TV.
 
 ## Variáveis de ambiente / flags (só para o controle remoto)
 
-Opcional — a configuração normal é pela UI (⚙ Controle na barra, salva em
-`%AppData%/SmartTV/smartv-remote.json`). Alternativas sem UI:
+**Instalação normal: zero configuração.** O instalador já vem com o servidor e
+o `AGENT_TOKEN` embutidos (gravados no build pelo CI, ver `docs/RELEASING.md`),
+então o PC conecta sozinho e o celular só precisa do código de pareamento.
 
+Para sobrescrever à mão (opcional), em ordem de prioridade:
+
+- UI: **Conexão → Configuração avançada** (salva em `%AppData%/SmartTV/smartv-remote.json`)
 - CLI: `--smartv-backend=wss://…/ws --smartv-agent-token=…`, `--smartv-remote-off`
 - env: `SMARTV_BACKEND_URL`/`SMARTV_AGENT_TOKEN` (ou `BACKEND_URL`/`AGENT_TOKEN`)
 - legado CDP local: `--smartv-cdp=PORTA` (só `127.0.0.1`, para o agente standalone)
@@ -159,8 +163,9 @@ Detalhes técnicos: o código é temporário (uso único, 5 min, vinculado ao ID
 desta instalação em `%AppData%/SmartTV/smartv-installation.json`); a troca
 gera um token aleatório de sessão por celular, validado no servidor a cada
 reconexão; tentativas de adivinhar são limitadas (10/min por conexão);
-QR e erros nunca contêm tokens permanentes. Configuração do servidor continua
-em **Conexão → Configuração avançada** (ou env/CLI), uma única vez.
+QR e erros nunca contêm tokens permanentes. Servidor e token já vêm embutidos
+no instalador (zero-config); para trocar, use **Conexão → Configuração
+avançada** (ou env/CLI).
 
 | Comando do celular | Execução no app |
 |---|---|

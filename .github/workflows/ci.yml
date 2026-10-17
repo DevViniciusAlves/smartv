@@ -45,4 +45,10 @@ jobs:
       - name: Publish Windows release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Baked into the installer (src/defaults.ts) so the PC needs ZERO
+          # configuration: it already knows the server and its own agent token.
+          # SMARTV_BACKEND_URL is a repo VARIABLE (not secret); the token is a
+          # repo SECRET. Change them in Settings → Secrets and variables → Actions.
+          SMARTV_BACKEND_URL: ${{ vars.SMARTV_BACKEND_URL || secrets.SMARTV_BACKEND_URL }}
+          SMARTV_AGENT_TOKEN: ${{ secrets.SMARTV_AGENT_TOKEN }}
         run: npm run dist:publish -w apps/desktop
