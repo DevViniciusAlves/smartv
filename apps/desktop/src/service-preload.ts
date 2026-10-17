@@ -72,6 +72,19 @@ function selectorsFor(host: string): string[] {
 
 const HIGHLIGHT_ID = "smartv-focus-style";
 const FOCUS_CLASS = "smartv-focused";
+const REMOTE_NAV_CLASS = "smartv-remote-nav";
+
+// Input-source tracking. D-pad commands arrive as key events: while they drive
+// the TV the cursor is hidden so the parked mouse does not fight the focus
+// ring. Any real mouse movement restores the pointer.
+let remoteNav = false;
+
+function setRemoteNav(on: boolean): void {
+  if (remoteNav === on) return;
+  remoteNav = on;
+  document.documentElement.classList.toggle(REMOTE_NAV_CLASS, on);
+  if (on) ensureStyle();
+}
 
 function ensureStyle(): void {
   if (document.getElementById(HIGHLIGHT_ID)) return;
@@ -79,7 +92,8 @@ function ensureStyle(): void {
   s.id = HIGHLIGHT_ID;
   s.textContent =
     `.${FOCUS_CLASS}{outline:4px solid #fff !important;outline-offset:3px !important;` +
-    `box-shadow:0 0 0 6px rgba(80,140,255,.8) !important;border-radius:8px;}`;
+    `box-shadow:0 0 0 6px rgba(80,140,255,.8) !important;border-radius:8px;}` +
+    `html.${REMOTE_NAV_CLASS},html.${REMOTE_NAV_CLASS} *{cursor:none !important;}`;
   document.head.appendChild(s);
 }
 
@@ -152,6 +166,7 @@ function onKeyDown(e: KeyboardEvent): void {
   if (dir) {
     e.preventDefault();
     e.stopPropagation();
+    setRemoteNav(true);
     move(dir);
     return;
   }
@@ -160,6 +175,7 @@ function onKeyDown(e: KeyboardEvent): void {
     if (active.classList.contains(FOCUS_CLASS)) {
       e.preventDefault();
       e.stopPropagation();
+      setRemoteNav(true);
       active.click();
     }
   }
@@ -168,4 +184,5 @@ function onKeyDown(e: KeyboardEvent): void {
 // Guarded so the pure `pickNext` can be imported by unit tests (Node has no DOM).
 if (typeof document !== "undefined") {
   document.addEventListener("keydown", onKeyDown, true);
+  document.addEventListener("mousemove", () => setRemoteNav(false), { passive: true });
 }

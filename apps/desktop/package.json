@@ -1,6 +1,6 @@
 {
   "name": "@smartv/desktop",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "private": true,
   "description": "Smart TV desktop app (Electron) for Windows",
   "author": "SmartTV",
@@ -12,7 +12,7 @@
     "start": "electron .",
     "pack": "npm run build && electron-builder --win --x64 --dir",
     "dist": "npm run build && electron-builder --win --x64",
-    "dist:publish": "npm run build && electron-builder --win nsis --x64 --publish always",
+    "dist:publish": "npm run build && electron-builder --win --x64 --publish always",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.preload.json && tsc --noEmit -p tsconfig.renderer.json",
     "test": "vitest run",
     "lint": "eslint src"

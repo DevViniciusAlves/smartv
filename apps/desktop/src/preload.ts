@@ -44,6 +44,8 @@ export interface SmartvApi {
   downloadUpdate(): Promise<void>;
   restartApp(): Promise<void>;
   onUpdateEvent(cb: (ev: string) => void): () => void;
+  getDisplays(): Promise<Array<{ id: number; label: string; bounds: { x: number; y: number; width: number; height: number } }>>;
+  setDisplay(displayId: number): Promise<void>;
 }
 
 const api: SmartvApi = {
@@ -96,6 +98,8 @@ const api: SmartvApi = {
     ipcRenderer.on("smartv:update-event", listener);
     return () => ipcRenderer.removeListener("smartv:update-event", listener);
   },
+  getDisplays: () => ipcRenderer.invoke("smartv:get-displays"),
+  setDisplay: (displayId: number) => ipcRenderer.invoke("smartv:set-display", displayId),
 };
 
 contextBridge.exposeInMainWorld("smartv", api);

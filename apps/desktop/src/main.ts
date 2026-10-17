@@ -3,7 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import { execFile } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { app, BrowserWindow, WebContentsView, ipcMain, session, type WebContents, type BrowserWindowConstructorOptions } from "electron";
+import { app, BrowserWindow, WebContentsView, ipcMain, session, screen, type WebContents, type BrowserWindowConstructorOptions } from "electron";
 import { STREAMING_APPS, controllerMessageSchema } from "@smartv/shared";
 import type { ControllerMessage } from "@smartv/shared";
 import { appUrl, isAllowedAppId, isAllowedNavigation } from "./security.js";
@@ -657,6 +657,21 @@ function registerIpc(): void {
   });
   ipcMain.handle("smartv:restart-app", () => {
     autoUpdater.quitAndInstall();
+  });
+  ipcMain.handle("smartv:get-displays", () => {
+    return screen.getAllDisplays().map((d, i) => ({
+      id: d.id,
+      label: d.label || `Monitor ${i + 1}`,
+      bounds: d.bounds,
+    }));
+  });
+  ipcMain.handle("smartv:set-display", (_e, displayId: number) => {
+    const displays = screen.getAllDisplays();
+    const display = displays.find((d) => d.id === displayId) || displays[0];
+    if (win) {
+      win.setBounds(display.bounds);
+      win.setFullScreen(true);
+    }
   });
 }
 

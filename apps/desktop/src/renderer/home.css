@@ -32,6 +32,8 @@ body {
   outline: none;
 }
 .hint { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; justify-content: center; opacity: 0.6; font-size: clamp(0.9rem, 1.8vw, 1.2rem); }
+/* Remote mode: hide the cursor until the mouse is actually moved. */
+html.remote-nav, html.remote-nav * { cursor: none !important; }
 #updateControls { display: flex; gap: 1rem; }
 #updateControls.hidden { display: none; }
 #updateControls button { padding: 0.5rem 1rem; cursor: pointer; }

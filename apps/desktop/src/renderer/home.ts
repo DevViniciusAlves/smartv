@@ -26,6 +26,17 @@ let apps: Array<{ id: string; name: string; color: string }> = [];
 let focusIndex = 0;
 let cards: HTMLElement[] = [];
 
+// Input-source tracking. The remote arrives as key events: while it drives the
+// TV, the mouse must NOT steal focus (hover was fighting the D-pad). Any real
+// mouse movement hands control back to the mouse and restores the cursor.
+let remoteNav = false;
+
+function setRemoteNav(on: boolean): void {
+  if (remoteNav === on) return;
+  remoteNav = on;
+  document.documentElement.classList.toggle("remote-nav", on);
+}
+
 async function load(): Promise<void> {
   const api = bridge();
   if (!api) {
@@ -54,7 +65,9 @@ function render(): void {
     b.setAttribute("aria-label", app.name);
     b.innerHTML = `<span class="wordmark">${app.name}</span>`;
     b.addEventListener("click", () => void openApp(i));
-    b.addEventListener("mouseenter", () => setFocus(i));
+    b.addEventListener("mouseenter", () => {
+      if (!remoteNav) setFocus(i);
+    });
     grid.appendChild(b);
     return b;
   });
@@ -94,6 +107,7 @@ function columnCount(): number {
 }
 
 document.addEventListener("keydown", (e: KeyboardEvent) => {
+  setRemoteNav(true);
   const cols = columnCount();
   switch (e.key) {
     case "ArrowRight": e.preventDefault(); setFocus(focusIndex + 1); break;
@@ -103,6 +117,9 @@ document.addEventListener("keydown", (e: KeyboardEvent) => {
     case "Enter": e.preventDefault(); void openApp(focusIndex); break;
   }
 });
+
+// A real mouse move re-enables the pointer (and hover-driven focus).
+document.addEventListener("mousemove", () => setRemoteNav(false), { passive: true });
 
 bridge()?.onStatus((text: string) => {
   const st = document.getElementById("status");
