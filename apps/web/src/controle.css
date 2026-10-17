@@ -100,3 +100,45 @@ body {
 #pairInput { text-align: center; font-size: 1.6rem; letter-spacing: 0.3em; font-weight: 800; }
 .scan { width: 100%; border-radius: 16px; background: #000; max-height: 300px; }
 .row.between { justify-content: space-between; }
+
+/* Compact phone layout: keep the complete remote visible on short screens.
+ * The desktop layout remains unchanged. The dial and media controls share
+ * the same row so the four media actions do not push the bottom toolbar below
+ * the viewport. */
+@media (max-width: 600px) and (max-height: 700px) {
+  html, body { overflow: hidden; }
+  .remote {
+    min-height: 100dvh;
+    height: 100dvh;
+    padding: calc(6px + env(safe-area-inset-top, 0px))
+      calc(6px + env(safe-area-inset-right, 0px))
+      calc(6px + env(safe-area-inset-bottom, 0px))
+      calc(6px + env(safe-area-inset-left, 0px));
+    gap: 6px;
+  }
+  .row { gap: 6px; }
+  .btn { min-height: 44px; border-radius: 14px; font-size: .92rem; }
+  .btn.round { flex-basis: 48px; width: 48px; height: 48px; min-height: 48px; }
+  .icon { width: 22px; height: 22px; }
+  .status { font-size: .78rem; }
+  .sub { font-size: .62rem; line-height: 1.05; }
+  .apps { gap: 6px; }
+  .apps .btn { min-height: 44px; border-radius: 12px; font-size: .78rem; }
+  .stage {
+    flex: 1 1 auto;
+    min-height: 0;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .dial { width: min(62vw, 260px); flex: 0 1 260px; }
+  .rockers { width: min(34vw, 150px); max-width: none; gap: 6px; }
+  .rocker { gap: 6px; }
+  .rock { min-height: 0; height: clamp(38px, 8.5vh, 52px); font-size: .82rem; padding: 0 4px; }
+  .rock .icon { width: 20px; height: 20px; }
+  .dok { font-size: 1.05rem; }
+  .controls { flex: 0 0 auto; }
+  .controls .btn { min-height: 42px; font-size: .72rem; padding: 0 4px; }
+  .controls .icon { width: 18px; height: 18px; }
+}

@@ -138,6 +138,17 @@ export class BraveManager {
       this.conn = conn;
       this.sessionId = sessionId;
       this.targetId = targetId;
+      // Brave can still create a second page target for links opened by a
+      // site (or by a native window.open call). SmartTV has one controlled
+      // surface, so keep the original target and close those extra tabs.
+      await this.conn.send("Target.setDiscoverTargets", { discover: true });
+      this.conn.on("Target.targetCreated", (params) => {
+        const info = params.targetInfo as { targetId?: string; type?: string } | undefined;
+        if (info?.type !== "page" || !info.targetId || info.targetId === this.targetId) return;
+        void this.conn
+          ?.send("Target.closeTarget", { targetId: info.targetId })
+          .catch((err) => this.deps.log(`[smartv-brave] extra tab closed: ${err.message}`));
+      });
       await this.injectNavigation();
       await this.rememberWindowId();
       this.visible = true;

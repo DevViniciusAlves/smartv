@@ -422,6 +422,11 @@ function openService(id: string): { ok: boolean; error?: string } {
       if (ok) return;
       // Brave vanished between the check and the launch: use the Electron view.
       console.warn("[smartv] Brave unavailable, using built-in view");
+      // Brave mode keeps the built-in view collapsed. Switch modes before
+      // loading the fallback, otherwise the page loads behind the Home view
+      // and the remote appears stuck on "Carregando…".
+      braveEnabled = false;
+      layout();
       serviceView?.webContents.loadURL(url).catch(() => undefined);
     });
     return { ok: true };
