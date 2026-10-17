@@ -42,13 +42,36 @@ jobs:
         env:
           TAG: ${{ github.ref_name }}
         run: node -e "const t=process.env.TAG.replace(/^v/,'');const v=require('./apps/desktop/package.json').version;if(t!==v){console.error('tag '+process.env.TAG+' != desktop '+v);process.exit(1)}"
-      - name: Publish Windows release
+      - name: Build Windows installer
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Baked into the installer (src/defaults.ts) so the PC needs ZERO
           # configuration: it already knows the server and its own agent token.
           # SMARTV_BACKEND_URL is a repo VARIABLE (not secret); the token is a
           # repo SECRET. Change them in Settings → Secrets and variables → Actions.
           SMARTV_BACKEND_URL: ${{ vars.SMARTV_BACKEND_URL || secrets.SMARTV_BACKEND_URL }}
           SMARTV_AGENT_TOKEN: ${{ secrets.SMARTV_AGENT_TOKEN }}
-        run: npm run dist:publish -w apps/desktop
+        run: npm run dist -w apps/desktop
+      - name: Verify release assets
+        shell: pwsh
+        run: |
+          $releaseDir = Join-Path $env:GITHUB_WORKSPACE 'apps/desktop/release'
+          $exe = Get-ChildItem $releaseDir -Filter 'SmartTV-Setup-*.exe' | Where-Object { $_.Name -notlike '*.blockmap' }
+          $yml = Join-Path $releaseDir 'latest.yml'
+          $blockmap = Get-ChildItem $releaseDir -Filter 'SmartTV-Setup-*.exe.blockmap'
+          if ($exe.Count -ne 1 -or -not (Test-Path $yml) -or $blockmap.Count -ne 1) {
+            throw "Expected exactly one installer, latest.yml and one blockmap in $releaseDir"
+          }
+      - name: Publish Windows release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          fail_on_unmatched_files: true
+          files: |
+            apps/desktop/release/SmartTV-Setup-*.exe
+            apps/desktop/release/latest.yml
+            apps/desktop/release/SmartTV-Setup-*.exe.blockmap
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
