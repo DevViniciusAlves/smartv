@@ -75,6 +75,11 @@ Só então teste no app instalado: abrir → barra mostra o download →
 - `dist:publish` usa `--win nsis` explícito: publicar com os targets
   `[nsis, dir]` dispara dois fluxos concorrentes e o segundo morre com
   `422 already_exists` na criação do Release (e ainda deixa duplicata).
+  **O `win.target` do `electron-builder.yml` precisa listar SÓ `nsis`** — no
+  electron-builder 26 o `--win nsis` da CLI NÃO substitui a lista do arquivo,
+  então ter `dir` ali recria o release duplicado mesmo com a flag. (O `pack`,
+  que usa `--dir` na CLI, continua gerando a pasta descompactada quando
+  necessário.)
 - `electron-builder.yml` tem `releaseType: release`: tags publicam direto,
   sem rascunho. Rascunho é invisível para o atualizador.
 - Instalador sem espaços no nome (`artifactName`): o `latest.yml` referencia

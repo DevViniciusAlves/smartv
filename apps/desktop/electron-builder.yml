@@ -21,9 +21,13 @@ publish:
   # Tags are deliberate releases: publish immediately instead of draft.
   releaseType: release
 win:
+  # ONLY nsis. A second target (dir) makes electron-builder run two concurrent
+  # publish flows for the same tag: the assets split across TWO duplicate
+  # releases and `releases/latest/download/latest.yml` 404s (app shows "Falha
+  # ao verificar atualização"). `--win nsis` on the CLI does NOT override this
+  # list in electron-builder 26 — it must be a single target here.
   target:
     - nsis
-    - dir
 nsis:
   oneClick: true
   perMachine: false
