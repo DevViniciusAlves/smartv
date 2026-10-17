@@ -4,8 +4,9 @@
 // - Codes are short-lived (5 min), single-use, and bound to one installation
 //   (deviceId). Issuing a new code invalidates the previous active one.
 // - Codes are NOT authentication: redeeming one mints a random 256-bit
-//   session token that the phone persists and uses in `hello`. Permanent
-//   tokens (ROOM_TOKEN/AGENT_TOKEN) never travel in codes, QR or errors.
+//   session token that the phone persists and uses in `hello`. There is no
+//   fixed controller token: only a code-issued session connects a phone.
+//   Permanent secrets (AGENT_TOKEN) never travel in codes, QR or errors.
 // - Anti-guessing is enforced in two layers: codes expire in 5 minutes and
 //   are single-use (tiny window), and the relay rate-limits pair attempts
 //   per socket (10/min) so brute force is infeasible.

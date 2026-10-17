@@ -103,9 +103,9 @@ export const serverToAgentSchema = controllerMessageSchema;
 export type ServerToAgentMessage = ControllerMessage;
 
 // ---- Pairing (6-digit codes + QR) ----
-// Temporary pairing mechanism only: it binds a phone to an installation and
-// issues a random per-device session token. It never replaces token auth and
-// never carries permanent secrets (no AGENT_TOKEN/ROOM_TOKEN in codes/QR).
+// The ONLY way a phone gets in: it redeems a code shown on the PC and gets a
+// random per-device session token. There is no fixed controller token; codes
+// never carry permanent secrets (no AGENT_TOKEN in codes/QR).
 
 export const PAIR_CODE_TTL_MS = 5 * 60 * 1000;
 export const PAIR_REFRESH_MS = 30 * 1000;

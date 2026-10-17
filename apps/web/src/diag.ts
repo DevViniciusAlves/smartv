@@ -1,9 +1,10 @@
 import { normalizeBackendUrl } from "./connection.js";
 import { CLOSE_CODES } from "@smartv/shared";
+import { parseBinding } from "./pairing.js";
 
 const RAW: string =
   (import.meta as unknown as { env: Record<string, string> }).env?.VITE_BACKEND_URL ?? "";
-const TOKEN_KEY = "smartv_token";
+const PAIR_KEY = "smartv_pair";
 const stepsEl = document.getElementById("steps") as HTMLElement;
 const report: string[] = [];
 
@@ -52,14 +53,15 @@ async function run(): Promise<void> {
   }
   s1.ok(`URL em uso: ${norm.url}` + (norm.notes.length > 0 ? ` (ajustes: ${norm.notes.join(", ")})` : ""));
 
-  // 2. Token.
-  const s2 = step("2. Token salvo");
-  const token = localStorage.getItem(TOKEN_KEY);
-  if (!token) {
-    s2.fail("Nenhum token salvo. Abra /controle?k=SEU_TOKEN uma vez ou digite na engrenagem.");
+  // 2. Vínculo de pareamento (única credencial: sessão emitida pelo código).
+  const s2 = step("2. Celular pareado");
+  const binding = parseBinding(localStorage.getItem(PAIR_KEY));
+  if (!binding) {
+    s2.fail("Nenhum pareamento salvo. No /controle, abra 🔗 Conexão e digite o código de 6 dígitos do PC.");
     return;
   }
-  s2.ok("Token salvo no celular. (O valor nunca é exibido.)");
+  const token = binding.token;
+  s2.ok("Celular pareado com o PC. (O valor nunca é exibido.)");
 
   // 3. Servidor no ar.
   const s3 = step("3. Servidor no ar (/health)");
@@ -132,7 +134,7 @@ async function run(): Promise<void> {
   if (hs.ok) {
     s4.ok("Login aceito pelo servidor.");
   } else if (hs.code === CLOSE_CODES.AUTH_FAILED) {
-    s4.fail("Token inválido (código 4401). Corrija o token na engrenagem do controle.");
+    s4.fail("Sessão inválida (código 4401). No /controle, abra 🔗 Conexão e pareie de novo com o código do PC.");
     return;
   } else if (hs.code === CLOSE_CODES.ORIGIN_NOT_ALLOWED) {
     s4.fail(
@@ -158,7 +160,7 @@ async function run(): Promise<void> {
 
 (document.getElementById("btnRun") as HTMLElement).addEventListener("click", () => void run());
 (document.getElementById("btnCopy") as HTMLElement).addEventListener("click", async () => {
-  const text = ["Relatório SmartTV (sem token):", ...report].join("\n");
+  const text = ["Relatório SmartTV (sem segredos):", ...report].join("\n");
   try {
     await navigator.clipboard.writeText(text);
   } catch {

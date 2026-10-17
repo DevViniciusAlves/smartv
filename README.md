@@ -35,8 +35,8 @@ Quem executa teclas/mouse/volume é o agente local. A página `/tv` não usa Web
 ## Pré-requisitos
 
 - Node.js 20 LTS ou superior em todas as máquinas.
-- Gere dois tokens longos e diferentes (ex.: `openssl rand -hex 32` duas vezes):
-  `ROOM_TOKEN` (celular) e `AGENT_TOKEN` (PC).
+- Gere um único token longo e secreto (ex.: `openssl rand -hex 32`):
+  `AGENT_TOKEN` (usado só pelo backend; o celular nunca vê token).
 
 ## 1. Deploy do backend (Render)
 
@@ -51,8 +51,7 @@ Quem executa teclas/mouse/volume é o agente local. A página `/tv` não usa Web
    - Start: `npm run start -w apps/server`
    - Health Check Path: `/health`
 2. No painel do Render, defina as variáveis:
-   - `ROOM_TOKEN` = token do celular
-   - `AGENT_TOKEN` = token do PC (diferente do anterior)
+   - `AGENT_TOKEN` = token do PC (único segredo do backend)
    - `ALLOWED_ORIGINS` = URL do Vercel, ex. `https://seu-app.vercel.app`
    - `NODE_ENV` = `production` (`PORT` o Render define sozinho)
    - `LOG_LEVEL` = `info` (opcional; use `debug` para ver o tipo de cada comando)
@@ -142,10 +141,8 @@ salvo (reabre sozinho). **Encerrar conexão** termina só aquele celular;
 **Sair** no PC fecha o app e avisa os celulares (DESCONECTADO na hora).
 Detalhes em `apps/desktop/README.md`.
 
-Modo legado com token manual: primeira abertura
-`https://seu-app.vercel.app/controle?k=SEU_ROOM_TOKEN` (salvo no
-`localStorage`); sem token a tela pede para colar. Token recusado: confira o
-`ROOM_TOKEN` no Render.
+O pareamento é a **única** forma de entrar: não existe mais token fixo no
+celular nem `?k=`.
 3. **Instalar como PWA:** no Android (Chrome) menu ⋮ → "Adicionar à tela inicial"/"Instalar";
    no iPhone (Safari) Compartilhar → "Adicionar à Tela de Início". Abre sem barra do navegador.
    (Os ícones `icon-192/512.png` são placeholders de 1 px — substitua por PNGs 192×192 e 512×512 com a sua marca.)
@@ -183,7 +180,7 @@ o youtube.com". Não há troca automática de user-agent.
 | Qualidade baixa na Netflix/HBO | Normal em navegador sem Widevine L1/app nativo; use o plano/config de qualidade do site. Limitação conhecida. |
 | Janela abre no monitor errado | Ajuste `TV_WINDOW_X/Y` (seção 3). No modo `app`, o agente reposiciona via CDP; no `kiosk`, confira se o `--window-position` levou a janela. |
 | Segunda janela/aba do Edge abre | O agente navega a janela única via CDP; confira no log qual caminho foi usado (`cdp` x `fallback`). Se o CDP não subiu (porta recusada no perfil), o fallback por `Ctrl+L`/respawn é usado e registrado. |
-| Token recusado | `ROOM_TOKEN` diferente entre celular e Render, ou `ALLOWED_ORIGINS` sem a URL do Vercel. |
+| Sessão recusada | Celular não pareado (ou sessão expirada): abra **🔗 Conexão** e pareie de novo com o código do PC, ou `ALLOWED_ORIGINS` sem a URL do Vercel. |
 
 ## Solução de problemas de conexão
 
@@ -193,20 +190,19 @@ O controle mostra exatamente o motivo. Tabela sintoma → causa → o que fazer
 | Sintoma no celular | Causa | O que fazer |
 |---|---|---|
 | `Carregando…` para sempre (>1 min) | Servidor fora do ar ou URL errada (sem `/health` respondendo) | Abra `/diag` no celular: o passo 3 diz se o servidor responde. Confira `VITE_BACKEND_URL` na Vercel + redeploy |
-| `Erro: token inválido` | `ROOM_TOKEN` do celular ≠ Render | O painel do token abre sozinho: digite de novo e salve (log: `hello_fail reason=bad_token`) |
+| `Erro: sessão inválida` | Celular perdeu/expiro o pareamento | Abra **🔗 Conexão** no controle e pareie de novo com o código do PC (log: `hello_fail reason=bad_token`) |
 | `Erro: origem não permitida` | URL da Vercel fora de `ALLOWED_ORIGINS` | Copie a origem mostrada na tela para `ALLOWED_ORIGINS` no Render, exatamente igual (log: `origin_not_allowed`) |
 | `Erro: servidor não configurado` | Falta `VITE_BACKEND_URL` | Configure na Vercel (Production) e faça redeploy |
 | `Conectado ao servidor, PC offline` | Agente do PC desconectado | Ligue o PC, confira `.env` (`AGENT_TOKEN`, `BACKEND_URL`) e o log `%USERPROFILE%\.smartv\agent.log` (no Render: sem linha `agent_online`) |
 | `/health` não abre no navegador | Serviço dormindo ou URL errada | Aguarde ~1 min (cold start) e recarregue; confira a URL do serviço |
 
 **Passo a passo no celular:** abra `https://seu-app.vercel.app/diag` e siga os 5 passos
-(config → token → `/health` → handshake → PC). Cada ❌ diz o que fazer. O botão
-**Copiar relatório** gera um texto sem o token para colar no suporte.
+(pareamento → `/health` → handshake → PC → online). Cada ❌ diz o que fazer. O botão
+**Copiar relatório** gera um texto sem segredos para colar no suporte.
 
 **iPhone:** o app instalado na tela inicial (PWA) **não compartilha** o `localStorage`
-com o Safari. O token precisa ser digitado **dentro do próprio app** (engrenagem ⚙ ou
-`?k=TOKEN` aberto no app). Se instalou o PWA antes de salvar o token, abra o `?k=`
-no app instalado, não no Safari.
+com o Safari. Faça o pareamento **dentro do próprio app** (🔗 Conexão): o vínculo fica
+salvo ali. Se você pareou no Safari, o PWA continua desconectado — pareie no app instalado.
 
 Para depurar pelo Render: **Dashboard → serviço → Logs**. Você deve ver o `boot`
 (porta, `ALLOWED_ORIGINS`, tokens marcados só como "definido"), cada `upgrade`

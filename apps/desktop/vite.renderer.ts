@@ -12,6 +12,7 @@ export default defineConfig({
       input: {
         home: "src/renderer/home.html",
         bar: "src/renderer/bar.html",
+        pair: "src/renderer/pair.html",
       },
     },
   },

@@ -9,41 +9,12 @@
 <body>
   <div class="bar">
     <button id="home" aria-label="Voltar à Home">⌂ Início</button>
+    <button id="back" class="ghost" aria-label="Voltar" disabled>← Voltar</button>
     <span id="title">Smart TV</span>
     <span id="status"></span>
     <span id="linkPill" class="pill off" title="Estado da conexão com o celular">DESCONECTADO</span>
     <button id="connOpen" aria-label="Abrir conexão com o celular">Conexão</button>
     <button id="appQuit" class="ghost" aria-label="Sair do SmartTV">Sair</button>
-  </div>
-
-  <div id="connModal" class="modal hidden" role="dialog" aria-label="Conexão com o celular">
-    <div class="sheet">
-      <div class="mHead">
-        <b>Conexão</b>
-        <span id="connPill" class="pill off">DESCONECTADO</span>
-      </div>
-      <div id="connSub" class="sub">Abra no celular para parear.</div>
-
-      <div id="pairBlock">
-        <div id="pairCode" class="code" aria-label="Código de pareamento">••••••</div>
-        <img id="pairQr" class="qr" alt="QR Code de pareamento" />
-        <div class="row between">
-          <span id="pairCount" class="count">Expira em --:--</span>
-          <button id="pairNew">Gerar novo código</button>
-        </div>
-        <div id="pairPhones" class="sub"></div>
-      </div>
-
-      <details id="advBox" class="adv">
-        <summary>Configuração avançada (servidor)</summary>
-        <div id="remoteState" class="sub"></div>
-        <label>Servidor (wss://…/ws)<input id="remoteBackend" type="text" placeholder="wss://seu-servico.onrender.com/ws" autocomplete="off" /></label>
-        <label>Token do PC (AGENT_TOKEN)<input id="remoteToken" type="password" placeholder="vazio = manter salvo" autocomplete="off" /></label>
-        <div class="row"><button id="remoteSave">Salvar e conectar</button></div>
-      </details>
-
-      <div class="row end"><button id="connClose">Fechar</button></div>
-    </div>
   </div>
 
   <script type="module" src="./bar.ts"></script>

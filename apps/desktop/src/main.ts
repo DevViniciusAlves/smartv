@@ -41,6 +41,11 @@ let win: BrowserWindow | null = null;
 let barView: WebContentsView | null = null;
 let homeView: WebContentsView | null = null;
 let serviceView: WebContentsView | null = null;
+let pairView: WebContentsView | null = null;
+// Conexão overlay: a dedicated full-window WebContentsView. It lives OUTSIDE
+// the 56px bar (where the old modal was clipped) and covers everything, so it
+// can never be cut off. Only one overlay exists; it is shown/hidden by bounds.
+let connOpen = false;
 
 // Single source of truth for which surface is visible. Electron events only
 // feed it; they never change visibility directly (avoids out-of-order races).
@@ -65,12 +70,14 @@ function pushRemoteStatus(text: string): void {
   console.log(`[smartv-remote] ${text}`);
   barView?.webContents.send("smartv:remote-status", text);
   homeView?.webContents.send("smartv:remote-status", text);
+  pairView?.webContents.send("smartv:remote-status", text);
 }
 
 function pushRemoteLink(): void {
   const payload = { link: remoteLink, linkedPhones };
   barView?.webContents.send("smartv:remote-link", payload);
   homeView?.webContents.send("smartv:remote-link", payload);
+  pairView?.webContents.send("smartv:remote-link", payload);
 }
 
 function setRemoteLink(link: typeof remoteLink): void {
@@ -81,6 +88,7 @@ function setRemoteLink(link: typeof remoteLink): void {
 function pushPairCode(info: { code: string; expiresAt: number }): void {
   barView?.webContents.send("smartv:pair-code", info);
   homeView?.webContents.send("smartv:pair-code", info);
+  pairView?.webContents.send("smartv:pair-code", info);
 }
 
 function runPowerShell(script: string): Promise<void> {
@@ -242,6 +250,41 @@ function layout(): void {
     serviceView.setBounds({ x: 0, y: 0, width: 0, height: 0 });
     homeView.setBounds(content);
   }
+  // The Conexão overlay covers the whole window (bar included) when open, and
+  // is collapsed to nothing otherwise. It is added last, so it is always on top.
+  if (pairView) {
+    pairView.setBounds(connOpen ? { x: 0, y: 0, width, height } : { x: 0, y: 0, width: 0, height: 0 });
+  }
+}
+
+// Whether the visible surface has somewhere to go "back" to. Home is the root,
+// so Back is only offered while a streaming app is open.
+function canGoBack(): boolean {
+  try {
+    if (router.snapshot().surface !== "service" || !serviceView) return false;
+    return serviceView.webContents.navigationHistory.canGoBack();
+  } catch {
+    return false;
+  }
+}
+
+function pushCanGoBack(): void {
+  barView?.webContents.send("smartv:can-go-back", canGoBack());
+}
+
+function goBack(): { ok: boolean; error?: string } {
+  if (!serviceView) return { ok: false, error: "no view" };
+  try {
+    if (serviceView.webContents.navigationHistory.canGoBack()) {
+      serviceView.webContents.navigationHistory.goBack();
+      return { ok: true };
+    }
+  } catch {
+    /* fall through to Home */
+  }
+  // Nothing in history: Back means "leave the app", i.e. return Home.
+  showHome();
+  return { ok: true };
 }
 
 // Applies a router decision: repositions views, refreshes status (always,
@@ -250,6 +293,7 @@ function layout(): void {
 function applyState(s: RouterSnapshot): void {
   layout();
   setStatus(s.status);
+  pushCanGoBack();
   if (s.surface !== lastSurface) {
     lastSurface = s.surface;
     (s.surface === "service" ? serviceView : homeView)?.webContents.focus();
@@ -309,7 +353,38 @@ function guardBarView(view: WebContentsView): void {
   // Escape is a no-op on Home itself, but handling it here keeps behavior
   // consistent after clicking around with the mouse (focus may sit in the bar).
   view.webContents.on("before-input-event", (_e, input) => {
-    if (input.type === "keyDown" && input.key === "Escape") showHome();
+    if (input.type === "keyDown" && input.key === "Escape") {
+      if (connOpen) closeConn();
+      else showHome();
+    }
+  });
+}
+
+// Opens the full-window Conexão overlay. It is the single place where the
+// phone pairs (6-digit code + QR) and where the server can be configured.
+function openConn(): void {
+  connOpen = true;
+  layout();
+  // The overlay refreshes itself (getRemote + requestPairCode) when active.
+  pairView?.webContents.send("smartv:pair-active", true);
+  try {
+    pairView?.webContents.focus();
+  } catch {
+    /* noop */
+  }
+}
+
+function closeConn(): void {
+  connOpen = false;
+  pairView?.webContents.send("smartv:pair-active", false);
+  layout();
+  (router.snapshot().surface === "service" ? serviceView : homeView)?.webContents.focus();
+}
+
+function guardPairView(view: WebContentsView): void {
+  // Escape (and the overlay's own Back/Close) always dismisses the overlay.
+  view.webContents.on("before-input-event", (_e, input) => {
+    if (input.type === "keyDown" && input.key === "Escape") closeConn();
   });
 }
 
@@ -374,6 +449,23 @@ async function finishShot(): Promise<void> {
         fs.writeFileSync(hpath, himg.toPNG());
         summary.escShot = hpath;
       }
+      // Conexão overlay: the old modal was clipped inside the 56px bar. Prove
+      // the new full-window view renders the pairing UI end to end.
+      if (pairView) {
+        openConn();
+        await new Promise((r) => setTimeout(r, 1200));
+        summary.pairCodeText = await pairView.webContents.executeJavaScript(
+          "document.getElementById('pairCode').textContent",
+        );
+        summary.pairQrPresent = await pairView.webContents.executeJavaScript(
+          "Boolean(document.getElementById('pairQr').getAttribute('src'))",
+        );
+        const pimg = await pairView.webContents.capturePage();
+        const ppath = SHOT_PNG.replace(/\.png$/i, "-pair.png");
+        fs.writeFileSync(ppath, pimg.toPNG());
+        summary.pairShot = ppath;
+        closeConn();
+      }
     }
   } catch (err) {
     summary.error = (err as Error).message;
@@ -397,6 +489,11 @@ async function createWindow(): Promise<void> {
   });
   win.on("closed", () => {
     win = null;
+    barView = null;
+    homeView = null;
+    serviceView = null;
+    pairView = null;
+    connOpen = false;
   });
   win.on("resize", layout);
 
@@ -411,11 +508,16 @@ async function createWindow(): Promise<void> {
   serviceView = new WebContentsView({
     webPreferences: { ...COMMON_WEB_PREFS, partition: SERVICE_PARTITION, ...shotPrefs },
   });
+  pairView = new WebContentsView({
+    webPreferences: { ...COMMON_WEB_PREFS, preload: distFile("preload.cjs"), ...shotPrefs },
+  });
   watchShot(barView, "bar");
   watchShot(homeView, "home");
   watchShot(serviceView, "service");
+  watchShot(pairView, "pair");
   guardBarView(barView);
   guardServiceView(serviceView);
+  guardPairView(pairView);
   // No remote debugging in the shipped app. Local dev only, explicit flag.
   if (DEV_DEBUG) {
     console.warn("[smartv] dev mode");
@@ -424,9 +526,11 @@ async function createWindow(): Promise<void> {
   win.contentView.addChildView(barView);
   win.contentView.addChildView(homeView);
   win.contentView.addChildView(serviceView);
+  win.contentView.addChildView(pairView);
 
   await barView.webContents.loadFile(distFile("renderer/bar.html"));
   await homeView.webContents.loadFile(distFile("renderer/home.html"));
+  await pairView.webContents.loadFile(distFile("renderer/pair.html"));
   layout();
   showHome();
   // Updates only make sense in the installed app: dev runs have no Releases
@@ -451,7 +555,15 @@ function registerIpc(): void {
     return openService(id);
   });
   ipcMain.handle("smartv:go-home", () => {
+    closeConn();
     showHome();
+  });
+  ipcMain.handle("smartv:go-back", () => goBack());
+  ipcMain.handle("smartv:conn-open", () => {
+    openConn();
+  });
+  ipcMain.handle("smartv:conn-close", () => {
+    closeConn();
   });
   ipcMain.handle("smartv:get-remote", () => {
     const stored = loadStoredRemoteConfig(app.getPath("userData"));

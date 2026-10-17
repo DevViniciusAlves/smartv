@@ -14,37 +14,23 @@ import {
 
 const RAW_BACKEND_URL: string =
   (import.meta as unknown as { env: Record<string, string> }).env?.VITE_BACKEND_URL ?? "";
-const TOKEN_KEY = "smartv_token";
 const PAIR_KEY = "smartv_pair";
 
 const statusEl = document.getElementById("status") as HTMLElement;
 const subEl = document.getElementById("substatus") as HTMLElement;
 const errorPanel = document.getElementById("errorPanel") as HTMLElement;
 const errorText = document.getElementById("errorText") as HTMLElement;
-const tokenPanel = document.getElementById("tokenPanel") as HTMLElement;
-const tokenMsg = document.getElementById("tokenMsg") as HTMLElement;
-const tokenInput = document.getElementById("tokenInput") as HTMLInputElement;
 
-// ---- credentials: pair binding (new) wins, legacy ROOM_TOKEN still works ----
+// ---- credential: ONLY the pair binding (session minted from the PC code).
+// There is no fixed token anymore: without pairing, nothing connects.
 
 function getPairBinding(): PairBinding | null {
   return parseBinding(localStorage.getItem(PAIR_KEY));
 }
 
-function getToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY);
-}
-
-/** Whatever authenticates this phone: pair session token or legacy token. */
+/** Whatever authenticates this phone: the pair session token, or nothing. */
 function getCredential(): string | null {
-  return getPairBinding()?.token ?? getToken();
-}
-
-// Legacy token via ?k=TOKEN na primeira abertura: salva e limpa a URL.
-{
-  const q = new URLSearchParams(location.search).get("k");
-  if (q?.trim()) localStorage.setItem(TOKEN_KEY, q.trim());
-  if (q !== null) history.replaceState(null, "", location.pathname);
+  return getPairBinding()?.token ?? null;
 }
 
 function buzz(): void {
@@ -96,12 +82,7 @@ function renderStatus(s: ConnStatus): void {
         paint("orange", "DESCONECTADO", "PC offline — abra o SmarTV no PC");
       } else       if (link.reason === "token") {
         if (s.name === "error" && s.kind === "auth") {
-          if (getPairBinding()) {
-            paint("red", "DESCONECTADO", "Sessão inválida — pareie de novo em 🔗 Conexão");
-          } else {
-            paint("red", "DESCONECTADO", "Token inválido");
-            openTokenPanel("Token inválido, digite de novo.");
-          }
+          paint("red", "DESCONECTADO", "Sessão inválida — pareie de novo em 🔗 Conexão");
         } else if (s.name === "error" && s.kind === "origin") {
           paint("red", "Erro: origem não permitida");
           errorText.textContent =
@@ -184,35 +165,6 @@ function startConnection(): void {
   conn.connect();
 }
 
-// Painel de token legado (engrenagem): mantido como avançado.
-function openTokenPanel(msg = ""): void {
-  tokenMsg.textContent = msg;
-  tokenInput.value = "";
-  tokenPanel.classList.remove("hidden");
-}
-(document.getElementById("btnGear") as HTMLElement).addEventListener("click", () => {
-  tokenPanel.classList.toggle("hidden");
-  tokenMsg.textContent = "";
-});
-(document.getElementById("btnTokenShow") as HTMLElement).addEventListener("click", () => {
-  tokenInput.type = tokenInput.type === "password" ? "text" : "password";
-});
-(document.getElementById("tokenSave") as HTMLElement).addEventListener("click", () => {
-  const v = tokenInput.value.trim();
-  if (!v) return;
-  localStorage.setItem(TOKEN_KEY, v);
-  tokenPanel.classList.add("hidden");
-  tokenMsg.textContent = "";
-  startConnection();
-});
-(document.getElementById("tokenLogout") as HTMLElement).addEventListener("click", () => {
-  localStorage.removeItem(TOKEN_KEY);
-  conn?.dispose();
-  conn = null;
-  tokenMsg.textContent = "";
-  tokenPanel.classList.remove("hidden");
-  paint("yellow", "DESCONECTADO", "Toque em 🔗 Conexão para parear com o PC");
-});
 (document.getElementById("btnRetry") as HTMLElement).addEventListener("click", () => {
   if (conn) conn.reconnect();
   else startConnection();
@@ -507,6 +459,9 @@ document.querySelectorAll<HTMLElement>("[data-hold]").forEach((el) => {
   );
   (document.getElementById("kbdBack") as HTMLElement).addEventListener("click", () =>
     send({ type: "textKey", key: "backspace" }),
+  );
+  (document.getElementById("kbdClose") as HTMLElement).addEventListener("click", () =>
+    panel.classList.add("hidden"),
   );
 }
 

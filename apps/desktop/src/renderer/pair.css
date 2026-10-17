@@ -1,0 +1,50 @@
+:root { color-scheme: dark; }
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0; background: rgba(4, 6, 10, 0.72); color: #f2f5fa;
+  font-family: system-ui, "Segoe UI", Roboto, sans-serif; overflow: hidden;
+}
+.modal {
+  height: 100vh; display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+}
+.sheet {
+  width: min(460px, 94vw); max-height: 92vh; overflow: auto;
+  background: #141a27; border: 1px solid #3a4358; border-radius: 16px;
+  padding: 22px; display: flex; flex-direction: column; gap: 12px;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.6);
+}
+.mHead { display: flex; align-items: center; justify-content: space-between; font-size: 1.3rem; gap: 10px; }
+.mHead b { flex: 1; }
+.sheet button.round {
+  min-width: 40px; padding: 0 10px; font-size: 1.1rem; background: #253149;
+}
+.sub { opacity: 0.75; font-size: 0.9rem; }
+.pill {
+  border-radius: 999px; padding: 4px 12px; font-size: 0.8rem; font-weight: 800;
+  letter-spacing: 0.04em; border: 1px solid #3a4358; white-space: nowrap;
+}
+.pill.on { background: #123d24; border-color: #2ea043; color: #7ee2a8; }
+.pill.mid { background: #3d2f12; border-color: #b8860b; color: #f0c674; }
+.pill.off { background: #3d1518; border-color: #a02e2e; color: #f09393; }
+.code {
+  font-size: 3rem; font-weight: 800; letter-spacing: 0.12em; text-align: center;
+  background: #0b0e14; border: 1px solid #3a4358; border-radius: 12px; padding: 8px;
+}
+.qr { width: 220px; height: 220px; align-self: center; border-radius: 12px; background: #fff; }
+.row { display: flex; gap: 8px; align-items: center; }
+.row.between { justify-content: space-between; }
+.row.end { justify-content: flex-end; }
+.count { font-size: 0.9rem; opacity: 0.85; }
+.sheet button {
+  border: 0; border-radius: 10px; background: #2e4a7a; color: #fff;
+  font-size: 0.95rem; font-weight: 700; min-height: 38px; padding: 0 14px; cursor: pointer;
+}
+.adv { border-top: 1px solid #3a4358; padding-top: 8px; font-size: 0.9rem; }
+.adv summary { cursor: pointer; opacity: 0.85; }
+.adv label { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+.adv input {
+  background: #0b0e14; color: #f2f5fa; border: 1px solid #3a4358; border-radius: 8px;
+  padding: 8px; font-size: 0.9rem; width: 100%;
+}

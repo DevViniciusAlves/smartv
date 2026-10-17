@@ -8,7 +8,6 @@ import { createApp } from "./app.js";
 import { attachUpgradeHandler } from "./upgrade.js";
 import { createLogger } from "./logger.js";
 
-const ROOM = "room-token-abc123";
 const AGENT = "agent-token-xyz789";
 const GOOD_ORIGIN = "https://app.vercel.app";
 
@@ -43,7 +42,7 @@ async function startServer(): Promise<TestServer> {
   const http: Server = createServer(createApp(room, allowed));
   const wss = new WebSocketServer({ noServer: true, maxPayload: 64 * 1024 });
   attachUpgradeHandler(http, wss, log);
-  attachRelay(wss, { roomToken: ROOM, agentToken: AGENT, allowedOrigins: allowed }, room, log);
+  attachRelay(wss, { agentToken: AGENT, allowedOrigins: allowed }, room, log);
   await new Promise<void>((resolve) => http.listen(0, "127.0.0.1", resolve));
   const port = (http.address() as AddressInfo).port;
   const done = (): Promise<void> =>
@@ -115,15 +114,40 @@ function waitMessage(ws: WebSocket): Promise<string> {
 }
 
 describe("server integration", () => {
-  it("accepts controller with correct origin and token", async () => {
-    const srv = await startServer();
-    const ws = open(`ws://127.0.0.1:${srv.port}/ws`, GOOD_ORIGIN);
+  // Phones enter ONLY via a code-issued session token (no fixed token).
+  // Helper: links an agent, issues a code, pairs a phone, returns the
+  // authenticated controller socket (state message already consumed).
+  async function pairedController(
+    srv: TestServer,
+    origin: string = GOOD_ORIGIN,
+  ): Promise<WebSocket> {
+    const agent = open(`ws://127.0.0.1:${srv.port}/ws`);
+    await waitOpen(agent);
+    agent.send(JSON.stringify({ type: "hello", role: "agent", token: AGENT, v: 1 }));
+    agent.send(JSON.stringify({ type: "pair-code-request" }));
+    let code = "";
+    for (let i = 0; i < 10; i++) {
+      const m = JSON.parse(await waitMessage(agent)) as { type?: string; code?: string };
+      if (m.type === "pair-code" && m.code) {
+        code = m.code;
+        break;
+      }
+    }
+    if (!code) throw new Error("pair-code not received");
+    const ws = open(`ws://127.0.0.1:${srv.port}/ws`, origin);
     await waitOpen(ws);
-    ws.send(JSON.stringify({ type: "hello", role: "controller", token: ROOM, v: 1 }));
-    const msg = JSON.parse(await waitMessage(ws)) as { type: string; agentOnline: boolean };
-    expect(msg.type).toBe("state");
-    expect(msg.agentOnline).toBe(false);
+    ws.send(JSON.stringify({ type: "pair", code }));
+    const first = JSON.parse(await waitMessage(ws)) as { type: string };
+    if (first.type !== "pair-ok") throw new Error(`pairing failed: ${first.type}`);
+    await waitMessage(ws); // state
+    return ws;
+  }
+
+  it("accepts controller paired by code", async () => {
+    const srv = await startServer();
+    await pairedController(srv);
     expect(srv.lines.some((l) => l.includes("hello_ok") && l.includes("role=controller"))).toBe(true);
+    expect(srv.lines.some((l) => l.includes("pair_ok"))).toBe(true);
   });
 
   it("rejects wrong origin with 4403", async () => {
@@ -136,15 +160,11 @@ describe("server integration", () => {
   it("accepts origin with trailing slash and uppercase", async () => {
     for (const variant of ["https://app.vercel.app/", "HTTPS://APP.VERCEL.APP"]) {
       const srv = await startServer();
-      const ws = open(`ws://127.0.0.1:${srv.port}/ws`, variant);
-      await waitOpen(ws);
-      ws.send(JSON.stringify({ type: "hello", role: "controller", token: ROOM, v: 1 }));
-      const msg = JSON.parse(await waitMessage(ws)) as { type: string };
-      expect(msg.type).toBe("state");
+      await pairedController(srv, variant);
     }
   });
 
-  it("rejects wrong token with 4401 and never logs the token", async () => {
+  it("rejects unknown hello token with 4401 and never logs secrets", async () => {
     const srv = await startServer();
     const ws = open(`ws://127.0.0.1:${srv.port}/ws`, GOOD_ORIGIN);
     await waitOpen(ws);
@@ -152,9 +172,16 @@ describe("server integration", () => {
     expect(await waitClose(ws)).toBe(CLOSE_CODES.AUTH_FAILED);
     expect(srv.lines.some((l) => l.includes("hello_fail") && l.includes("bad_token"))).toBe(true);
     const all = srv.lines.join("\n");
-    expect(all).not.toContain(ROOM);
     expect(all).not.toContain(AGENT);
     expect(all).not.toContain("wrong-token");
+  });
+
+  it("rejects the retired fixed token: only pair sessions connect", async () => {
+    const srv = await startServer();
+    const ws = open(`ws://127.0.0.1:${srv.port}/ws`, GOOD_ORIGIN);
+    await waitOpen(ws);
+    ws.send(JSON.stringify({ type: "hello", role: "controller", token: "any-old-fixed-token", v: 1 }));
+    expect(await waitClose(ws)).toBe(CLOSE_CODES.AUTH_FAILED);
   });
 
   it("answers 404 on wrong websocket path", async () => {
@@ -166,10 +193,7 @@ describe("server integration", () => {
 
   it("brings agent online and replaces it with a newer one", async () => {
     const srv = await startServer();
-    const ctl = open(`ws://127.0.0.1:${srv.port}/ws`, GOOD_ORIGIN);
-    await waitOpen(ctl);
-    ctl.send(JSON.stringify({ type: "hello", role: "controller", token: ROOM, v: 1 }));
-    await waitMessage(ctl); // agentOnline: false
+    const ctl = await pairedController(srv);
     const agent1 = open(`ws://127.0.0.1:${srv.port}/ws`, GOOD_ORIGIN);
     await waitOpen(agent1);
     agent1.send(JSON.stringify({ type: "hello", role: "agent", token: AGENT, v: 1 }));
@@ -187,15 +211,10 @@ describe("server integration", () => {
     // With ALLOWED_ORIGINS configured, it must still connect (token auth
     // happens in the hello message, after the upgrade).
     const srv = await startServer();
-    const ctl = open(`ws://127.0.0.1:${srv.port}/ws`, GOOD_ORIGIN);
-    await waitOpen(ctl);
-    ctl.send(JSON.stringify({ type: "hello", role: "controller", token: ROOM, v: 1 }));
-    await waitMessage(ctl); // agentOnline: false
+    await pairedController(srv);
     const agent = open(`ws://127.0.0.1:${srv.port}/ws`); // no Origin
     await waitOpen(agent);
     agent.send(JSON.stringify({ type: "hello", role: "agent", token: AGENT, v: 1 }));
-    const online = JSON.parse(await waitMessage(ctl)) as { type: string; agentOnline: boolean };
-    expect(online.agentOnline).toBe(true);
   });
 
   it("serves /health with CORS only for allowed origins", async () => {

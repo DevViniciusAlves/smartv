@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Conexão — Smart TV</title>
+  <link rel="stylesheet" href="./pair.css" />
+</head>
+<body>
+  <div class="modal">
+    <div class="sheet" role="dialog" aria-label="Conexão com o celular">
+      <div class="mHead">
+        <button id="connBack" class="round" aria-label="Voltar">←</button>
+        <b>Conexão</b>
+        <span id="connPill" class="pill off">DESCONECTADO</span>
+      </div>
+      <div id="connSub" class="sub">Abra no celular para parear.</div>
+
+      <div id="pairBlock">
+        <div id="pairCode" class="code" aria-label="Código de pareamento">••••••</div>
+        <img id="pairQr" class="qr" alt="QR Code de pareamento" hidden />
+        <div class="row between">
+          <span id="pairCount" class="count">Gerando código…</span>
+          <button id="pairNew">Gerar novo código</button>
+        </div>
+        <div id="pairPhones" class="sub"></div>
+      </div>
+
+      <details id="advBox" class="adv">
+        <summary>Configuração avançada (servidor)</summary>
+        <div id="remoteState" class="sub"></div>
+        <label>Servidor (wss://…/ws)<input id="remoteBackend" type="text" placeholder="wss://seu-servico.onrender.com/ws" autocomplete="off" /></label>
+        <label>Token do PC (AGENT_TOKEN)<input id="remoteToken" type="password" placeholder="vazio = manter salvo" autocomplete="off" /></label>
+        <div class="row"><button id="remoteSave">Salvar e conectar</button></div>
+      </details>
+
+      <div class="row end"><button id="connClose">Fechar</button></div>
+    </div>
+  </div>
+  <script type="module" src="./pair.ts"></script>
+</body>
+</html>

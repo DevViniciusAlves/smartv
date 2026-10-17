@@ -15,8 +15,6 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-      - key: ROOM_TOKEN
-        sync: false
       - key: AGENT_TOKEN
         sync: false
       - key: ALLOWED_ORIGINS

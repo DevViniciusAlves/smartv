@@ -17,7 +17,6 @@
         <div id="substatus" class="sub"></div>
       </div>
       <button id="btnConn" class="btn round" aria-label="Conexão com o SmarTV">🔗</button>
-      <button id="btnGear" class="btn round" aria-label="Configurar token">⚙</button>
       <button id="btnHome" class="btn round" aria-label="Início">⌂</button>
     </div>
     <div id="errorPanel" class="panel error hidden">
@@ -60,25 +59,11 @@
         <button id="kbdEnter" class="btn">Enter</button>
         <button id="kbdBack" class="btn">⌫</button>
       </div>
+      <div class="row"><button id="kbdClose" class="btn">Voltar ao controle</button></div>
     </div>
     <div id="touchPanel" class="panel hidden">
       <div id="touchArea" class="touch">Arraste para mover • toque = clique • 2 dedos = botão direito/scroll</div>
       <div class="row"><button id="touchBack" class="btn">Voltar ao controle</button></div>
-    </div>
-    <div id="tokenPanel" class="panel hidden">
-      <div id="tokenMsg" class="errText"></div>
-      <p>Token do controle (ROOM_TOKEN):</p>
-      <div class="row">
-        <input id="tokenInput" type="password" placeholder="cole o token aqui" autocomplete="off" />
-        <button id="btnTokenShow" class="btn slim" aria-label="Mostrar token">👁</button>
-      </div>
-      <div class="row">
-        <button id="tokenSave" class="btn">Salvar e conectar</button>
-        <button id="tokenLogout" class="btn">Apagar token</button>
-      </div>
-      <div class="row">
-        <a class="btn link" href="/diag">Verificar conexão</a>
-      </div>
     </div>
     <div id="connModal" class="panel modal hidden" role="dialog" aria-label="Conexão com o SmarTV">
       <div class="mHead">

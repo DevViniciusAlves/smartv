@@ -137,11 +137,14 @@ builds frios, depois vale o cache da Vercel.
 
 Sem configurar URL nem copiar token no celular. Fluxo:
 
-1. No app, clique em **Conexão** (barra superior): o modal mostra um **código
-   de 6 dígitos** + **QR Code**, o contador de validade (5 min), o estado
+1. No app, clique em **Conexão** (barra superior): abre o painel **Conexão** em
+   **tela cheia** (uma view própria, sobre tudo — antes era um modal que ficava
+   cortado dentro da barra de 56 px). Ele mostra um **código de 6 dígitos** +
+   **QR Code**, o contador de validade (5 min), o estado
    (`CONECTADO`/`CONECTANDO`/`DESCONECTADO`) e quantos celulares estão
    vinculados. O código **renova sozinho a cada 30 s**; **Gerar novo código**
-   invalida o anterior na hora. Fechar o modal **não** desconecta.
+   invalida o anterior na hora. Saia com **Fechar**, **← Voltar** ou **Esc** —
+   fechar o painel **não** desconecta.
 2. No celular, abra `/controle` → **🔗 Conexão** → **digite os 6 dígitos** ou
    **escaneie o QR** (pede a câmera; sem câmera/HTTPS, digite o código).
 3. Pareado: o celular mostra **CONECTADO** e controla o PC. O vínculo fica
@@ -179,9 +182,10 @@ do app), o **agente** (`apps/agent`) continua recebendo o WebSocket com alvo
 de segunda infra ou API local aberta. Não use os dois ao mesmo tempo.
 
 **Diagnóstico da cadeia (verificado no código):** `/controle` normaliza a URL
-(`https://`→`wss://` + `/ws`) e mostra um status por código (`4401` token,
-`4403` origem, `PC offline` distinto); o servidor autentica `controller` com
-`ROOM_TOKEN` e `agent` com `AGENT_TOKEN`, mantém 1 agente + N controles e
+(`https://`→`wss://` + `/ws`) e mostra um status por código (`4401` sessão,
+`4403` origem, `PC offline` distinto); o servidor autentica o `controller`
+**apenas pela sessão emitida no pareamento** (não há mais token fixo de
+celular) e o `agent` com `AGENT_TOKEN`, mantém 1 agente + N controles e
 retransmite comandos validados; o controle usa um único socket com geração e
 não reconecta em loop nesses erros; o protocolo já cobre tudo que o desktop
 precisa (`key/media/volume/app/text/textKey/mouse/scroll/power`). A falha
@@ -218,11 +222,11 @@ a Home local é exibida pelo próprio app.
 - A extensão do Edge **não** é usada aqui (Electron não executa extensões MV3
   como o Edge); navegação por foco nas Home é nativa, nos serviços é a nativa
   de cada site + setas do teclado.
-- Sem auto-update nesta etapa (instalador manual).
+- Auto-update via GitHub Releases (ver `docs/RELEASING.md`).
 
 ## Testes manuais pendentes (no PC da TV, com suas contas)
 
-1. Abrir, navegar na Home só com setas + Enter; Esc volta à Home de qualquer serviço.
+1. Abrir, navegar na Home só com setas + Enter; **← Voltar** (barra, habilitado dentro de um serviço) e **Esc** voltam à Home de qualquer serviço.
 2. Logar nos 4 serviços (sessão persiste após fechar/reabrir?).
 3. `youtube.com/tv` navega e reproduz com som em tela cheia.
 4. Netflix/Max/Disney+: até onde chega sem conta e com conta (registrar erro exato — esperado: erro de DRM, ex. Netflix M7701/M7121).

@@ -19,18 +19,15 @@ process.on("unhandledRejection", (reason) => {
 
 const PORT = Number(process.env.PORT ?? "3001");
 const NODE_ENV = process.env.NODE_ENV ?? "development";
-const ROOM_TOKEN = process.env.ROOM_TOKEN ?? "";
+// AGENT_TOKEN: único segredo do backend (o PC). Celulares SÓ entram via
+// sessão emitida pelo pareamento (código de 6 dígitos); não há token fixo.
 const AGENT_TOKEN = process.env.AGENT_TOKEN ?? "";
 const { allowed: ALLOWED_ORIGINS, invalid: INVALID_ORIGINS } = parseAllowedOrigins(
   process.env.ALLOWED_ORIGINS,
 );
 
-if (!ROOM_TOKEN || !AGENT_TOKEN) {
-  log.error("fatal", { reason: "ROOM_TOKEN and AGENT_TOKEN must be set" });
-  process.exit(1);
-}
-if (ROOM_TOKEN === AGENT_TOKEN) {
-  log.error("fatal", { reason: "ROOM_TOKEN and AGENT_TOKEN must differ" });
+if (!AGENT_TOKEN) {
+  log.error("fatal", { reason: "AGENT_TOKEN must be set" });
   process.exit(1);
 }
 if (ALLOWED_ORIGINS.length === 0 && NODE_ENV === "production") {
@@ -52,7 +49,7 @@ attachUpgradeHandler(http, wss, log);
 
 attachRelay(
   wss,
-  { roomToken: ROOM_TOKEN, agentToken: AGENT_TOKEN, allowedOrigins: ALLOWED_ORIGINS },
+  { agentToken: AGENT_TOKEN, allowedOrigins: ALLOWED_ORIGINS },
   room,
   log,
 );
@@ -62,7 +59,6 @@ http.listen(PORT, () => {
     port: PORT,
     node_env: NODE_ENV,
     allowed_origins: ALLOWED_ORIGINS.join(",") || "-",
-    room_token_set: ROOM_TOKEN !== "",
     agent_token_set: AGENT_TOKEN !== "",
   });
 });

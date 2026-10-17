@@ -36,9 +36,10 @@ export function isOriginAllowed(origin: string | undefined, allowed: string[]): 
   const norm = normalizeOrigin(origin);
   // Native non-browser clients (the Windows agent: Node.js/Electron `ws`)
   // never send an Origin header. Browsers always do, so an attacker using a
-  // browser cannot suppress it. Token auth (ROOM_TOKEN/AGENT_TOKEN) still
-  // applies after the upgrade, so allowing the empty origin only unblocks
-  // the agent without weakening controller checks.
+  // browser cannot suppress it. Agent auth (AGENT_TOKEN) still applies after
+  // the upgrade, so allowing the empty origin only unblocks the agent
+  // without weakening controller checks (controllers authenticate solely
+  // with a code-issued session token).
   if (!norm) return true;
   return allowed.includes(norm);
 }

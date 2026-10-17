@@ -16,7 +16,6 @@ import { isOriginAllowed, normalizeOrigin } from "./origins.js";
 import { PairingManager } from "./pairing.js";
 
 export interface RoomConfig {
-  roomToken: string;
   agentToken: string;
   allowedOrigins: string[];
 }
@@ -242,11 +241,8 @@ export function attachRelay(
           authenticateAgent(hello.data.deviceId);
           return;
         }
-        // Controller: legacy ROOM_TOKEN or a minted pair session token.
-        if (safeEqual(hello.data.token, config.roomToken)) {
-          authenticateController(null, room.deviceId);
-          return;
-        }
+        // Controller: SOMENTE session token emitido via pareamento (código).
+        // Não existe mais token fixo: sem pair-ok prévio, não há controle.
         const boundDevice = room.pairing.deviceOfToken(hello.data.token);
         if (boundDevice !== null && (room.deviceId === null || boundDevice === room.deviceId)) {
           authenticateController(hello.data.token, boundDevice);
