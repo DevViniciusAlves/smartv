@@ -117,9 +117,9 @@ describe("cdpKeyParams", () => {
 describe("wrapServicePreload", () => {
   it("shims CommonJS so the compiled preload runs in the page world", () => {
     const wrapped = wrapServicePreload("exports.hit = 1; typeof document;");
-    expect(wrapped.startsWith("(function(){var module={exports:{}};var exports=module.exports;")).toBe(
-      true,
-    );
+    expect(wrapped.startsWith("(function(){\n")).toBe(true);
+    expect(wrapped).toContain("window.open=function(url)");
+    expect(wrapped).toContain("a[target=_blank],a[target=_new]");
     expect(wrapped).toContain("exports.hit = 1;");
     expect(wrapped.endsWith("})();")).toBe(true);
   });

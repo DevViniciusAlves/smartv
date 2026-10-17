@@ -211,7 +211,12 @@ export function cdpKeyParams(ev: CdpKeyEventLike): CdpKeyParams | null {
  */
 export function wrapServicePreload(source: string): string {
   return (
-    "(function(){var module={exports:{}};var exports=module.exports;\n" +
+    "(function(){\n" +
+    // Keep Brave's target=_blank/window.open navigations inside the single
+    // SmartTV surface; otherwise CDP input remains attached to the old tab.
+    "if(typeof window!=='undefined'&&typeof document!=='undefined'){var smartvOpen=window.open;window.open=function(url){if(url){location.href=String(url);}return window;};\n" +
+    "document.addEventListener('click',function(e){var a=e.target instanceof Element?e.target.closest('a[target=_blank],a[target=_new]'):null;if(!a)return;var href=a.href;if(!href)return;e.preventDefault();e.stopImmediatePropagation();location.href=href;},true);void smartvOpen;}\n" +
+    "var module={exports:{}};var exports=module.exports;\n" +
     source +
     "\n})();"
   );
