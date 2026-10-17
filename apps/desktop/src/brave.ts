@@ -74,6 +74,10 @@ export function buildBraveArgs(o: BraveLaunchOptions): string[] {
     "--disable-sync",
     "--disable-session-crashed-bubble",
     "--disable-infobars",
+    // Make protected-content playback explicit in the dedicated Brave
+    // profile. Without this, some Brave installations report the generic
+    // "DRM system not compatible" page even though Widevine is installed.
+    "--enable-widevine-cdm",
     "--autoplay-policy=no-user-gesture-required",
     "--overscroll-history-navigation=0",
     "--disable-pinch",

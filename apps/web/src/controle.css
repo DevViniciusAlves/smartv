@@ -58,14 +58,14 @@ body {
   box-shadow: 0 0 0 6px #0f131c, 0 0 0 7px #2c3a52, 0 10px 24px rgba(0,0,0,.5);
 }
 .dial-btn {
-  position: absolute; width: 29%; height: 29%; min-width: 0; min-height: 0;
+  position: absolute; width: 32%; height: 32%; min-width: 0; min-height: 0;
   border-radius: 50%; display: flex; align-items: center; justify-content: center;
 }
-.dial-btn .icon { width: 48%; height: 48%; }
-.dup { top: 3%; left: calc(50% - 14.5%); }
-.ddown { bottom: 3%; left: calc(50% - 14.5%); }
-.dleft { left: 3%; top: calc(50% - 14.5%); }
-.dright { right: 3%; top: calc(50% - 14.5%); }
+.dial-btn .icon { width: 58%; height: 58%; }
+.dup { top: 2%; left: calc(50% - 16%); }
+.ddown { bottom: 2%; left: calc(50% - 16%); }
+.dleft { left: 2%; top: calc(50% - 16%); }
+.dright { right: 2%; top: calc(50% - 16%); }
 .dok {
   left: 33%; top: 33%; width: 34%; height: 34%;
   background: linear-gradient(180deg, #3a5a94, #2e4a7a); font-weight: 800; font-size: 1.35rem;
@@ -127,17 +127,17 @@ body {
   .stage {
     flex: 1 1 auto;
     min-height: 0;
-    flex-direction: row;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 8px;
+    gap: 14px;
   }
-  .dial { width: min(62vw, 260px); flex: 0 1 260px; }
-  .rockers { width: min(34vw, 150px); max-width: none; gap: 6px; }
+  .dial { width: min(82vw, 340px); flex: 0 0 auto; }
+  .rockers { width: min(94vw, 480px); max-width: none; gap: 8px; }
   .rocker { gap: 6px; }
-  .rock { min-height: 0; height: clamp(38px, 8.5vh, 52px); font-size: .82rem; padding: 0 4px; }
-  .rock .icon { width: 20px; height: 20px; }
-  .dok { font-size: 1.05rem; }
+  .rock { min-height: 0; height: clamp(44px, 8.5vh, 58px); font-size: .92rem; padding: 0 4px; }
+  .rock .icon { width: 24px; height: 24px; }
+  .dok { font-size: 1.15rem; }
   .controls { flex: 0 0 auto; }
   .controls .btn { min-height: 42px; font-size: .72rem; padding: 0 4px; }
   .controls .icon { width: 18px; height: 18px; }
