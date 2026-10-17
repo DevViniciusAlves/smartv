@@ -10,7 +10,7 @@
 //   - hello role=agent with AGENT_TOKEN, heartbeat ping every 30 s (also keeps
 //     the free Render service awake), exponential-backoff reconnect (max 30 s)
 //   - 4401/4403 NEVER retry in a loop: they need user action (fix token in the
-//     ⚙ Controle panel or ALLOWED_ORIGINS on Render)
+//     Configuração panel or ALLOWED_ORIGINS on Render)
 //   - 4400 (replaced): warn loudly — almost always the standalone agent with
 //     the same token still running — then retry (last writer wins)
 //   - incoming messages are validated by the shared zod whitelist; anything
@@ -75,7 +75,7 @@ export class EmbeddedAgent {
     this.connect();
   }
 
-  /** Re-reads config (after the user saves in ⚙) and reconnects now. */
+  /** Re-reads config (after the user saves in Configuração) and reconnects now. */
   reconnect(): void {
     this.cleanupSocket();
     if (this.timer) {
@@ -122,7 +122,7 @@ export class EmbeddedAgent {
     if (this.stopped) return;
     const cfg = this.getConfig();
     if (!cfg) {
-      this.events.onStatus("Controle: não configurado — abra ⚙ e salve servidor + token");
+      this.events.onStatus("Controle: não configurado — abra Configuração e salve servidor + token");
       return;
     }
     this.attempt += 1;
@@ -232,7 +232,7 @@ export class EmbeddedAgent {
     const desc = describeClose(code);
     this.log(`[remote] closed code=${code} kind=${desc.kind} reason=${reason || "-"}`);
     if (desc.kind === "auth") {
-      this.events.onStatus("Controle: token inválido — confira o token em ⚙ e no Render");
+      this.events.onStatus("Controle: token inválido — confira o token em Configuração e no Render");
       return; // parked: needs user action
     }
     if (desc.kind === "origin") {

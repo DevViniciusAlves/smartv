@@ -25,6 +25,11 @@ import { DEFAULT_BACKEND_URL, DEFAULT_AGENT_TOKEN } from "./defaults.js";
 import { EmbeddedAgent } from "./remote-agent.js";
 import { describeAction, systemScriptFor } from "./command-runner.js";
 import { ElectronBlocker } from "@ghostery/adblocker-electron";
+import {
+  BraveManager,
+  braveUserDataDir,
+  defaultPreloadPath,
+} from "./brave-manager.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DIST = __dirname;
@@ -71,6 +76,24 @@ let remoteStatusText = "Controle: não configurado";
 // server accepted us as agent (phone pairing is counted separately below).
 let remoteLink: "DESCONECTADO" | "CONECTANDO" | "CONECTADO" = "DESCONECTADO";
 let linkedPhones = 0;
+
+// Brave renders the streaming services when installed (native Widevine DRM for
+// HBO Max / Netflix with zero setup). It is created lazily: apps stay closed
+// until the phone opens one, and the manager is null when Brave is absent.
+let brave: BraveManager | null = null;
+let braveEnabled = false;
+
+/** Lazily resolves Brave. Returns the manager, or null when not installed. */
+function ensureBrave(): BraveManager | null {
+  if (!brave) {
+    brave = new BraveManager({
+      userDataDir: braveUserDataDir(app.getPath("userData")),
+      preloadPath: defaultPreloadPath(DIST),
+      log: (line) => console.log(line),
+    });
+  }
+  return brave.resolveExecutable() ? brave : null;
+}
 
 function pushRemoteStatus(text: string): void {
   remoteStatusText = text;
@@ -161,9 +184,13 @@ function runRemoteCommand(msg: ControllerMessage): void {
     return;
   }
   if (action.kind === "media-play" || action.kind === "media-pause") {
+    const method = action.kind === "media-play" ? "play" : "pause";
+    if (braveEnabled && brave?.isShowing()) {
+      void brave.playPause(method).catch(() => undefined);
+      return;
+    }
     const target = focusedContents();
     if (!target) return;
-    const method = action.kind === "media-play" ? "play" : "pause";
     void target
       .executeJavaScript(
         `for (const v of document.querySelectorAll("video")) { try { v.${method}(); } catch (e) {} }`,
@@ -172,6 +199,12 @@ function runRemoteCommand(msg: ControllerMessage): void {
     return;
   }
   if (action.kind === "press") {
+    if (braveEnabled && brave?.isShowing()) {
+      void brave.dispatchKeys(action.events).catch((err: unknown) =>
+        console.warn(`[smartv] brave input failed: ${(err as Error).message}`),
+      );
+      return;
+    }
     const target = focusedContents();
     if (!target) return;
     for (const ev of action.events) {
@@ -252,6 +285,11 @@ function quitAppGracefully(): void {
     /* noop */
   }
   remoteAgent = null;
+  try {
+    brave?.stop();
+  } catch {
+    /* noop */
+  }
   setRemoteLink("DESCONECTADO");
   app.quit();
 }
@@ -288,7 +326,9 @@ function layout(): void {
   const BAR_H = 56;
   barView.setBounds({ x: 0, y: 0, width, height: BAR_H });
   const content = { x: 0, y: BAR_H, width, height: height - BAR_H };
-  if (router.snapshot().surface === "service") {
+  // With Brave in front, the built-in service view stays collapsed: the real
+  // window is Brave's, and keeping a second copy loaded would waste memory.
+  if (router.snapshot().surface === "service" && !braveEnabled) {
     homeView.setBounds({ x: 0, y: 0, width: 0, height: 0 });
     serviceView.setBounds(content);
   } else {
@@ -305,6 +345,7 @@ function layout(): void {
 // Whether the visible surface has somewhere to go "back" to. Home is the root,
 // so Back is only offered while a streaming app is open.
 function canGoBack(): boolean {
+  if (braveEnabled && brave?.isShowing()) return true;
   try {
     if (router.snapshot().surface !== "service" || !serviceView) return false;
     return serviceView.webContents.navigationHistory.canGoBack();
@@ -318,6 +359,16 @@ function pushCanGoBack(): void {
 }
 
 function goBack(): { ok: boolean; error?: string } {
+  if (braveEnabled && brave?.isShowing()) {
+    void brave
+      .goBack()
+      .then((went) => {
+        // Nothing in Brave's history: Back means "leave the app" -> Home.
+        if (!went) showHome();
+      })
+      .catch(() => showHome());
+    return { ok: true };
+  }
   if (!serviceView) return { ok: false, error: "no view" };
   try {
     if (serviceView.webContents.navigationHistory.canGoBack()) {
@@ -346,12 +397,30 @@ function applyState(s: RouterSnapshot): void {
 }
 
 function showHome(): void {
+  // Brave stays open (its window is just minimized), so the login/session and
+  // playback state survive; reopening a service reuses it. The Electron view
+  // is only hidden for the duration Brave is in front.
+  if (braveEnabled && brave?.isShowing()) void brave.hide().catch(() => undefined);
   applyState(router.goHome());
 }
 
 function openService(id: string): { ok: boolean; error?: string } {
   const url = appUrl(id);
-  if (!url || !serviceView) return { ok: false, error: "unknown app" };
+  if (!url) return { ok: false, error: "unknown app" };
+  // Brave first: native Widevine DRM works out of the box. Falls back to the
+  // bundled Electron view when Brave is not installed.
+  const b = braveEnabled ? ensureBrave() : null;
+  if (b) {
+    applyState(router.openApp(id, url));
+    void b.ensureRunning(url).then((ok) => {
+      if (ok) return;
+      // Brave vanished between the check and the launch: use the Electron view.
+      console.warn("[smartv] Brave unavailable, using built-in view");
+      serviceView?.webContents.loadURL(url).catch(() => undefined);
+    });
+    return { ok: true };
+  }
+  if (!serviceView) return { ok: false, error: "unknown app" };
   applyState(router.openApp(id, url));
   serviceView.webContents.loadURL(url).catch((err: unknown) => {
     console.warn(`[smartv] loadURL failed: ${(err as Error).message}`);
@@ -544,24 +613,6 @@ async function createWindow(): Promise<void> {
       });
   }
 
-  // Widevine DRM support (HBO Max, Netflix, Disney+, etc.)
-  const widevineDir = path.join(DIST, "WidevineCdm");
-  const widevineManifest = path.join(widevineDir, "manifest.json");
-  const widevineDll = path.join(widevineDir, "_platform_specific", "win_x64", "widevinecdm.dll");
-  if (fs.existsSync(widevineDll) && fs.existsSync(widevineManifest)) {
-    try {
-      const manifest = JSON.parse(fs.readFileSync(widevineManifest, "utf8")) as { version?: string };
-      const version = manifest.version ?? "4.10.3112.0";
-      app.commandLine.appendSwitch("widevine-cdm-path", widevineDir);
-      app.commandLine.appendSwitch("widevine-cdm-version", version);
-      console.log(`[smartv] Widevine DRM enabled (v${version})`);
-    } catch {
-      console.warn("[smartv] Failed to read Widevine manifest");
-    }
-  } else {
-    console.warn("[smartv] Widevine CDM not found — DRM content will not play");
-  }
-
   win = new BrowserWindow({
     ...(SHOT_PNG
       ? { show: false, fullscreen: false, width: 1280, height: 800 }
@@ -744,6 +795,27 @@ async function main(): Promise<void> {
     // even while the real app is open.
     app.setPath("userData", path.join(os.tmpdir(), "smartv-shot-profile"));
   }
+  // Widevine DRM support (HBO Max, Netflix, Disney+, etc.).
+  // MUST be before app.whenReady() — Chromium reads these switches at init.
+  if (!SHOT_PNG) {
+    app.commandLine.appendSwitch("autoplay-policy", "no-user-gesture-required");
+    const widevineDir = path.join(DIST, "WidevineCdm");
+    const widevineManifest = path.join(widevineDir, "manifest.json");
+    const widevineDll = path.join(widevineDir, "_platform_specific", "win_x64", "widevinecdm.dll");
+    if (fs.existsSync(widevineDll) && fs.existsSync(widevineManifest)) {
+      try {
+        const manifest = JSON.parse(fs.readFileSync(widevineManifest, "utf8")) as { version?: string };
+        const version = manifest.version ?? "4.10.3112.0";
+        app.commandLine.appendSwitch("widevine-cdm-path", widevineDir);
+        app.commandLine.appendSwitch("widevine-cdm-version", version);
+        console.log(`[smartv] Widevine DRM enabled (v${version})`);
+      } catch {
+        console.warn("[smartv] Failed to read Widevine manifest");
+      }
+    } else {
+      console.warn("[smartv] Widevine CDM not found — DRM content will not play");
+    }
+  }
   if (!app.requestSingleInstanceLock()) {
     app.quit();
     return;
@@ -760,7 +832,14 @@ async function main(): Promise<void> {
     await createWindow();
     // The installed app is itself the controllable device (no standalone
     // agent needed). Shot mode stays offline: no network from diagnostics.
-    if (!SHOT_PNG) startEmbeddedAgent();
+    if (!SHOT_PNG) {
+      startEmbeddedAgent();
+      // Brave renders streaming services when installed (native Widevine DRM).
+      braveEnabled = ensureBrave() !== null;
+      console.log(
+        `[smartv] DRM renderer: ${braveEnabled ? "Brave (native Widevine)" : "built-in view (no Brave found)"}`,
+      );
+    }
   } catch (err) {
     console.error(`[smartv] startup failed: ${(err as Error).message}`);
     app.quit();
@@ -771,10 +850,12 @@ async function main(): Promise<void> {
   });
   app.on("window-all-closed", () => {
     remoteAgent?.stop();
+    brave?.stop();
     app.quit();
   });
   app.on("before-quit", () => {
     remoteAgent?.stop();
+    brave?.stop();
   });
 }
 

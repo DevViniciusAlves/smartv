@@ -52,8 +52,7 @@ export type ConnEvent =
   | { type: "hello_ok"; agentOnline: boolean }
   | { type: "state"; agentOnline: boolean }
   | { type: "closed"; code: number }
-  | { type: "failed" }
-  | { type: "gave_up" };
+  | { type: "failed" };
 
 export function reduceConn(status: ConnStatus, ev: ConnEvent, now: number): ConnStatus {
   switch (ev.type) {
@@ -72,8 +71,6 @@ export function reduceConn(status: ConnStatus, ev: ConnEvent, now: number): Conn
       return status.name === "connected"
         ? { name: "loading", since: now }
         : status;
-    case "gave_up":
-      return { name: "error", kind: "network", autoRetry: false };
   }
 }
 
@@ -82,7 +79,11 @@ export interface ConnCallbacks {
   onSendBlocked(): void;
 }
 
-const GIVE_UP_AFTER_MS = 60000;
+// Never "gives up": a TV remote keeps trying until the link comes back (or
+// the credential is rejected, which parks explicitly). The phone may sit in
+// the background for hours while the free server sleeps — coming back to the
+// app must simply reconnect, never ask for the pairing code again.
+const RETRY_CAP_MS = 30000;
 
 export class RemoteConnection {
   private ws: WebSocket | null = null;
@@ -90,7 +91,6 @@ export class RemoteConnection {
   private generation = 0;
   private status: ConnStatus = { name: "loading", since: Date.now() };
   private failCount = 0;
-  private firstFailAt: number | null = null;
 
   constructor(
     private readonly url: string,
@@ -167,7 +167,6 @@ export class RemoteConnection {
       const m = msg as { type?: string; agentOnline?: boolean };
       if (m.type === "state") {
         this.failCount = 0;
-        this.firstFailAt = null;
         this.apply({ type: "hello_ok", agentOnline: m.agentOnline === true });
       }
     };
@@ -187,20 +186,16 @@ export class RemoteConnection {
   // Manual retry (button / token change / foreground): fresh counters.
   reconnect(): void {
     this.failCount = 0;
-    this.firstFailAt = null;
     this.connect();
   }
 
+  // Schedules the next attempt with capped exponential backoff. It never
+  // stops: losing the link (server sleeping, phone offline, PC restarting)
+  // must heal by itself, without the pairing code being typed again.
   private onFailure(gen: number): void {
     if (gen !== this.generation) return;
-    const now = Date.now();
-    if (this.firstFailAt === null) this.firstFailAt = now;
     this.failCount += 1;
-    if (now - this.firstFailAt > GIVE_UP_AFTER_MS) {
-      this.apply({ type: "gave_up" });
-      return;
-    }
-    const delay = Math.min(30000, 1000 * 2 ** Math.min(this.failCount, 5));
+    const delay = Math.min(RETRY_CAP_MS, 1000 * 2 ** Math.min(this.failCount, 5));
     this.timer = window.setTimeout(() => {
       this.timer = null;
       if (gen === this.generation) this.connect();

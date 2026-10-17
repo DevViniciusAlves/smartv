@@ -65,12 +65,13 @@ describe("reduceConn", () => {
     );
     expect(fromConnected).toEqual({ name: "loading", since: 99 });
   });
-  it("gave_up becomes a network error", () => {
-    expect(reduceConn(loading, { type: "gave_up" }, 1)).toEqual({
-      name: "error",
-      kind: "network",
-      autoRetry: false,
-    });
+  it("never gives up: a network close always schedules another retry", () => {
+    // Same close, late in a failure streak, still returns to loading so the
+    // manager keeps retrying (the phone must not require the code again).
+    const early = reduceConn({ name: "loading", since: 0 }, { type: "closed", code: 1006 }, 1);
+    const late = reduceConn({ name: "connected", agentOnline: true }, { type: "closed", code: 1006 }, 999999);
+    expect(early.name).toBe("loading");
+    expect(late.name).toBe("loading");
   });
   it("state updates agent presence", () => {
     expect(

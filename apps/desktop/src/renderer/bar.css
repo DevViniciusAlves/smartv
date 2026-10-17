@@ -9,6 +9,7 @@ body { margin: 0; background: #0b0e14; color: #f2f5fa; font-family: system-ui, "
 }
 .bar button.ghost { background: transparent; border: 1px solid #3a4358; font-weight: 600; }
 .bar button:disabled { opacity: 0.4; cursor: default; }
+.bar button .ic { width: 18px; height: 18px; margin-right: 6px; vertical-align: -3px; color: inherit; fill: none; }
 #title { font-weight: 700; }
 #status { margin-left: auto; opacity: 0.7; font-size: 0.9rem; }
 .pill {

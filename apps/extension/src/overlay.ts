@@ -23,7 +23,7 @@ function ensureHost(): HTMLElement | null {
   box.className = "box";
   const clock = document.createElement("span");
   const home = document.createElement("button");
-  home.textContent = "⌂ Início";
+  home.textContent = "Início";
   home.addEventListener("click", () => {
     window.location.href = LAUNCHER_URL;
   });

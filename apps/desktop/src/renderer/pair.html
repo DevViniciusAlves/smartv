@@ -7,10 +7,16 @@
   <link rel="stylesheet" href="./pair.css" />
 </head>
 <body>
+  <svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
+    <symbol id="i-back" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M9 14 4 9l5-5" />
+      <path d="M20 20v-7a4 4 0 0 0-4-4H4" />
+    </symbol>
+  </svg>
   <div class="modal">
     <div class="sheet" role="dialog" aria-label="Conexão com o celular">
       <div class="mHead">
-        <button id="connBack" class="round" aria-label="Voltar">←</button>
+        <button id="connBack" class="round" aria-label="Voltar"><svg class="ic"><use href="#i-back"></use></svg></button>
         <b>Conexão</b>
         <span id="connPill" class="pill off">DESCONECTADO</span>
       </div>

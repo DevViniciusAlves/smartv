@@ -76,6 +76,10 @@ export function attachRelay(
   room: RoomState,
   log: Logger = noopLogger(),
 ): void {
+  // Durable phone sessions: signed with the server secret so a restart of the
+  // free instance never forces the phone to pair again (see pairing.ts).
+  room.pairing.setSessionSecret(config.agentToken);
+
   wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
     const origin = req.headers.origin as string | undefined;
     if (!isOriginAllowed(origin, config.allowedOrigins)) {

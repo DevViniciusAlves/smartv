@@ -550,6 +550,12 @@ document.addEventListener("visibilitychange", () => {
   }
   if (document.visibilityState === "visible") void lockScreen();
 });
+// Rede voltou (Wi-Fi trocado, modo avião desligado): tenta na hora em vez de
+// esperar o backoff de 30 s. A reconexão é sempre a mesma credencial antiga.
+window.addEventListener("online", () => {
+  if (conn && getCredential()) conn.reconnect();
+  else if (getCredential()) startConnection();
+});
 let wakeLock: unknown = null;
 async function lockScreen(): Promise<void> {
   try {

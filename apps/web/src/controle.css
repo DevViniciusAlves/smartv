@@ -7,30 +7,31 @@ body {
   touch-action: manipulation;
 }
 .remote {
-  width: 100%; max-width: none; margin: 0 auto;
+  width: 100%; max-width: none; margin: 0;
+  min-height: 100vh; min-height: 100dvh;
   padding:
-    calc(12px + env(safe-area-inset-top, 0px))
-    calc(12px + env(safe-area-inset-right, 0px))
-    calc(16px + env(safe-area-inset-bottom, 0px))
-    calc(12px + env(safe-area-inset-left, 0px));
-  display: flex; flex-direction: column; gap: 14px;
+    calc(8px + env(safe-area-inset-top, 0px))
+    calc(8px + env(safe-area-inset-right, 0px))
+    calc(8px + env(safe-area-inset-bottom, 0px))
+    calc(8px + env(safe-area-inset-left, 0px));
+  display: flex; flex-direction: column; gap: 10px;
 }
-@media (min-width: 720px) { .remote { max-width: 640px; } }
+@media (min-width: 720px) { .remote { max-width: 900px; } }
 .row { display: flex; gap: 10px; align-items: center; justify-content: space-between; }
 
 /* ---- icons ---- */
-.icon { width: 26px; height: 26px; flex: none; color: inherit; }
+.icon { width: 28px; height: 28px; flex: none; color: inherit; }
 
 /* ---- buttons ---- */
 .btn {
-  min-height: 60px; min-width: 52px; flex: 1; border: 0; border-radius: 16px;
+  min-height: 68px; min-width: 56px; flex: 1; border: 0; border-radius: 18px;
   background: linear-gradient(180deg, #232c3d, #1a2130); color: #fff;
-  font-size: 1.1rem; font-weight: 600; box-shadow: 0 1px 0 rgba(255,255,255,.06) inset;
+  font-size: 1.2rem; font-weight: 600; box-shadow: 0 1px 0 rgba(255,255,255,.06) inset;
   display: flex; align-items: center; justify-content: center; gap: 8px;
 }
 .btn:active { background: #2c3a52; transform: scale(0.97); }
 .btn.round {
-  border-radius: 999px; flex: 0 0 64px; width: 64px; height: 64px; min-height: 64px;
+  border-radius: 999px; flex: 0 0 72px; width: 72px; height: 72px; min-height: 72px;
 }
 .btn.danger { background: #5b1a1a; }
 .btn.link { display: flex; align-items: center; justify-content: center; text-decoration: none; }
@@ -47,12 +48,12 @@ body {
 
 /* ---- app shortcuts ---- */
 .apps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; width: 100%; }
-.apps .btn { min-height: 52px; padding: 0 6px; font-size: 0.95rem; border-top: 4px solid var(--brand, #888); }
+.apps .btn { min-height: 60px; padding: 0 6px; font-size: 1rem; border-top: 4px solid var(--brand, #888); }
 
 /* ---- main remote body: dial on top, volume | media below ---- */
 .stage { display: flex; flex-direction: column; align-items: center; gap: 16px; width: 100%; }
 .dial {
-  position: relative; width: min(78vw, 320px); aspect-ratio: 1; border-radius: 50%;
+  position: relative; width: min(85vw, 380px); aspect-ratio: 1; border-radius: 50%;
   background: radial-gradient(circle at 50% 35%, #334056 0%, #1b2130 62%, #10141d 100%);
   box-shadow: 0 0 0 6px #0f131c, 0 0 0 7px #2c3a52, 0 10px 24px rgba(0,0,0,.5);
 }
@@ -75,8 +76,8 @@ body {
   width: 100%; max-width: 560px; align-items: stretch;
 }
 .rocker { display: flex; flex-direction: column; gap: 10px; }
-.rock { min-height: 56px; font-size: 1.05rem; }
-.rock .icon { width: 30px; height: 30px; }
+.rock { min-height: 64px; font-size: 1.15rem; }
+.rock .icon { width: 32px; height: 32px; }
 
 /* ---- bottom controls ---- */
 .controls { gap: 10px; }

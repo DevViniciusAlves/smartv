@@ -7,8 +7,8 @@ let cards: HTMLElement[] = [];
 function iconSvg(id: string): string {
   // Wordmarks próprios simples (sem baixar logos protegidos).
   const label: Record<string, string> = {
-    youtube: "▶ YouTube",
-    netflix: "N NETFLIX",
+    youtube: "YouTube",
+    netflix: "NETFLIX",
     hbo: "HBO",
     disney: "Disney+",
   };

@@ -7,9 +7,19 @@
   <link rel="stylesheet" href="./bar.css" />
 </head>
 <body>
+  <svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
+    <symbol id="i-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3 10.5 12 3l9 7.5V20a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 20z" />
+      <path d="M9.5 21.5V13h5v8.5" />
+    </symbol>
+    <symbol id="i-back" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M9 14 4 9l5-5" />
+      <path d="M20 20v-7a4 4 0 0 0-4-4H4" />
+    </symbol>
+  </svg>
   <div class="bar">
-    <button id="home" aria-label="Voltar à Home">⌂ Início</button>
-    <button id="back" class="ghost" aria-label="Voltar" disabled>← Voltar</button>
+    <button id="home" aria-label="Voltar à Home"><svg class="ic"><use href="#i-home"></use></svg>Início</button>
+    <button id="back" class="ghost" aria-label="Voltar" disabled><svg class="ic"><use href="#i-back"></use></svg>Voltar</button>
     <span id="title">Smart TV</span>
     <span id="status"></span>
     <span id="linkPill" class="pill off" title="Estado da conexão com o celular">DESCONECTADO</span>

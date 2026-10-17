@@ -13,7 +13,7 @@ function step(title: string): { ok: (detail: string) => void; fail: (detail: str
   div.className = "panel step";
   const icon = document.createElement("div");
   icon.className = "icon";
-  icon.textContent = "⏳";
+  icon.textContent = "...";
   const body = document.createElement("div");
   const h = document.createElement("div");
   h.innerHTML = `<b>${title}</b>`;
@@ -29,7 +29,7 @@ function step(title: string): { ok: (detail: string) => void; fail: (detail: str
     detail.textContent = text;
     report.push(`${mark} ${title}: ${text}`);
   };
-  return { ok: (t) => done("✅", t), fail: (t) => done("❌", t) };
+  return { ok: (t) => done("OK", t), fail: (t) => done("ERRO", t) };
 }
 
 function wsToHttp(wsUrl: string): string {

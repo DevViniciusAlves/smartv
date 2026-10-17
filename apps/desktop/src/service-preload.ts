@@ -52,6 +52,33 @@ export function pickNext(current: Rect, dir: Direction, candidates: Rect[]): num
   return best;
 }
 
+const OPPOSITE: Record<Direction, Direction> = { up: "down", down: "up", left: "right", right: "left" };
+
+// Wrap-around for TV rows: when nothing lies further in `dir` (end of a row),
+// jump to the element farthest in the opposite direction — the same behaviour
+// a Smart TV launcher has when you keep pressing Right at the last tile.
+export function pickNextWrap(current: Rect, dir: Direction, candidates: Rect[]): number {
+  const back = OPPOSITE[dir];
+  const c = center(current);
+  let best = -1;
+  let bestDist = -1;
+  candidates.forEach((r, i) => {
+    const p = center(r);
+    const dx = p.x - c.x;
+    const dy = p.y - c.y;
+    if (back === "right" && dx <= 4) return;
+    if (back === "left" && dx >= -4) return;
+    if (back === "down" && dy <= 4) return;
+    if (back === "up" && dy >= -4) return;
+    const primary = back === "left" || back === "right" ? Math.abs(dx) : Math.abs(dy);
+    if (primary > bestDist) {
+      bestDist = primary;
+      best = i;
+    }
+  });
+  return best;
+}
+
 // Per-site focusable selectors (mirrors the Edge extension adapters). Adjust
 // here when a service changes its layout.
 const SITE_SELECTORS: Record<string, string[]> = {
@@ -92,7 +119,8 @@ function ensureStyle(): void {
   s.id = HIGHLIGHT_ID;
   s.textContent =
     `.${FOCUS_CLASS}{outline:4px solid #fff !important;outline-offset:3px !important;` +
-    `box-shadow:0 0 0 6px rgba(80,140,255,.8) !important;border-radius:8px;}` +
+    `box-shadow:0 0 0 6px rgba(80,140,255,.8) !important;border-radius:8px;` +
+    `transform:scale(1.05) !important;transition:transform .12s ease;}` +
     `html.${REMOTE_NAV_CLASS},html.${REMOTE_NAV_CLASS} *{cursor:none !important;}`;
   document.head.appendChild(s);
 }
@@ -132,24 +160,29 @@ function currentRect(): Rect {
   return { x: window.innerWidth / 2 - 1, y: window.innerHeight / 2 - 1, width: 2, height: 2 };
 }
 
-function move(dir: Direction): void {
+// Moves the focus ring one step in `dir`. Returns true only when focus really
+// moved, so the caller can decide whether the arrow key was consumed (a TV
+// must not swallow keys on pages with nothing to focus, e.g. video players).
+function move(dir: Direction): boolean {
   ensureStyle();
   Array.from(document.querySelectorAll(`.${FOCUS_CLASS}`)).forEach((el) =>
     el.classList.remove(FOCUS_CLASS),
   );
   const els = focusables();
-  if (els.length === 0) return;
+  if (els.length === 0) return false;
   const rects = els.map((el) => {
     const r = el.getBoundingClientRect();
     return { x: r.x, y: r.y, width: r.width, height: r.height };
   });
-  const idx = pickNext(currentRect(), dir, rects);
-  if (idx >= 0) {
-    const el = els[idx];
-    el.classList.add(FOCUS_CLASS);
-    el.focus({ preventScroll: true });
-    el.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
-  }
+  let idx = pickNext(currentRect(), dir, rects);
+  // TV-style wrap: end of a row jumps back to the start (and vice versa).
+  if (idx < 0) idx = pickNextWrap(currentRect(), dir, rects);
+  if (idx < 0) return false;
+  const el = els[idx];
+  el.classList.add(FOCUS_CLASS);
+  el.focus({ preventScroll: true });
+  el.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+  return true;
 }
 
 const DIRS: Record<string, Direction> = {
@@ -164,10 +197,14 @@ function onKeyDown(e: KeyboardEvent): void {
   if (playerActive()) return;
   const dir = DIRS[e.key];
   if (dir) {
-    e.preventDefault();
-    e.stopPropagation();
-    setRemoteNav(true);
-    move(dir);
+    // The key is swallowed ONLY when the D-pad really moved the focus: pages
+    // with nothing focusable (video players, carousels) keep their own
+    // arrow-key behaviour (seek/scroll).
+    if (move(dir)) {
+      e.preventDefault();
+      e.stopPropagation();
+      setRemoteNav(true);
+    }
     return;
   }
   if (e.key === "Enter" && document.activeElement instanceof HTMLElement) {
