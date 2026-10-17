@@ -57,7 +57,7 @@ async function run(): Promise<void> {
   const s2 = step("2. Celular pareado");
   const binding = parseBinding(localStorage.getItem(PAIR_KEY));
   if (!binding) {
-    s2.fail("Nenhum pareamento salvo. No /controle, abra 🔗 Conexão e digite o código de 6 dígitos do PC.");
+    s2.fail("Nenhum pareamento salvo. No /controle, abra Conexão e digite o código de 6 dígitos do PC.");
     return;
   }
   const token = binding.token;
@@ -134,7 +134,7 @@ async function run(): Promise<void> {
   if (hs.ok) {
     s4.ok("Login aceito pelo servidor.");
   } else if (hs.code === CLOSE_CODES.AUTH_FAILED) {
-    s4.fail("Sessão inválida (código 4401). No /controle, abra 🔗 Conexão e pareie de novo com o código do PC.");
+    s4.fail("Sessão inválida (código 4401). No /controle, abra Conexão e pareie de novo com o código do PC.");
     return;
   } else if (hs.code === CLOSE_CODES.ORIGIN_NOT_ALLOWED) {
     s4.fail(

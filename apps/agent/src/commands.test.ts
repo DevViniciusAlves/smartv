@@ -111,6 +111,8 @@ describe("handleCommand", () => {
   it("maps media actions", async () => {
     const cases: Array<[ControllerMessage, string]> = [
       [{ type: "media", action: "playpause" }, "tap:space"],
+      [{ type: "media", action: "play" }, "tap:space"],
+      [{ type: "media", action: "pause" }, "tap:space"],
       [{ type: "media", action: "seekForward" }, "tap:right"],
       [{ type: "media", action: "seekBackward" }, "tap:left"],
       [{ type: "media", action: "fullscreen" }, "tap:f"],

@@ -20,8 +20,18 @@
         <button id="btnDownload" class="hidden">Baixar atualização</button>
         <button id="btnRestart" class="hidden">Reiniciar e atualizar</button>
       </div>
+      <button id="btnSelectMonitor">Escolher Monitor</button>
       <span>Use as setas e Enter • Esc volta aqui</span>
     </footer>
+  </div>
+
+  <div id="monitorModal" class="modal hidden">
+    <div class="modal-content">
+      <h2>Selecione o monitor</h2>
+      <div id="monitorList"></div>
+      <button id="btnMonitorOk">OK</button>
+      <button id="btnCloseMonitor">Cancelar</button>
+    </div>
   </div>
   <script type="module" src="./home.ts"></script>
 </body>

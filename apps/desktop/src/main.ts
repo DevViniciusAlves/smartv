@@ -24,6 +24,7 @@ import { loadStoredRemoteConfig, saveStoredRemoteConfig, getOrCreateInstallation
 import { DEFAULT_BACKEND_URL, DEFAULT_AGENT_TOKEN } from "./defaults.js";
 import { EmbeddedAgent } from "./remote-agent.js";
 import { describeAction, systemScriptFor } from "./command-runner.js";
+import { ElectronBlocker } from "@ghostery/adblocker-electron";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DIST = __dirname;
@@ -118,7 +119,11 @@ function runPowerShell(script: string): Promise<void> {
   });
 }
 
-function focusedContents(): { sendInputEvent(ev: unknown): void; focus(): void } | null {
+function focusedContents(): {
+  sendInputEvent(ev: unknown): void;
+  focus(): void;
+  executeJavaScript(code: string): Promise<unknown>;
+} | null {
   const surface = router.snapshot().surface;
   const view = surface === "service" ? serviceView : homeView;
   if (!view) return null;
@@ -127,7 +132,11 @@ function focusedContents(): { sendInputEvent(ev: unknown): void; focus(): void }
   } catch {
     /* noop */
   }
-  return view.webContents as unknown as { sendInputEvent(ev: unknown): void; focus(): void };
+  return view.webContents as unknown as {
+    sendInputEvent(ev: unknown): void;
+    focus(): void;
+    executeJavaScript(code: string): Promise<unknown>;
+  };
 }
 
 function runRemoteCommand(msg: ControllerMessage): void {
@@ -149,6 +158,17 @@ function runRemoteCommand(msg: ControllerMessage): void {
   if (action.kind === "open-app") {
     const res = openService(action.id);
     if (!res.ok) console.warn(`[smartv-remote] open-app rejected: ${action.id}`);
+    return;
+  }
+  if (action.kind === "media-play" || action.kind === "media-pause") {
+    const target = focusedContents();
+    if (!target) return;
+    const method = action.kind === "media-play" ? "play" : "pause";
+    void target
+      .executeJavaScript(
+        `for (const v of document.querySelectorAll("video")) { try { v.${method}(); } catch (e) {} }`,
+      )
+      .catch(() => undefined);
     return;
   }
   if (action.kind === "press") {
@@ -510,7 +530,37 @@ async function finishShot(): Promise<void> {
 
 async function createWindow(): Promise<void> {
   // Ensures the persistent service partition exists (cookies survive restarts).
-  session.fromPartition(SERVICE_PARTITION, { cache: true });
+  const serviceSession = session.fromPartition(SERVICE_PARTITION, { cache: true });
+
+  // Ad blocker (same engine as Brave: EasyList + EasyPrivacy + anti-tracking).
+  if (!SHOT_PNG) {
+    ElectronBlocker.fromPrebuiltAdsAndTracking()
+      .then((blocker) => {
+        blocker.enableBlockingInSession(serviceSession);
+        console.log("[smartv] Ad blocker enabled (Ghostery/Brave engine)");
+      })
+      .catch((err) => {
+        console.warn(`[smartv] Ad blocker failed: ${err.message}`);
+      });
+  }
+
+  // Widevine DRM support (HBO Max, Netflix, Disney+, etc.)
+  const widevineDir = path.join(DIST, "WidevineCdm");
+  const widevineManifest = path.join(widevineDir, "manifest.json");
+  const widevineDll = path.join(widevineDir, "_platform_specific", "win_x64", "widevinecdm.dll");
+  if (fs.existsSync(widevineDll) && fs.existsSync(widevineManifest)) {
+    try {
+      const manifest = JSON.parse(fs.readFileSync(widevineManifest, "utf8")) as { version?: string };
+      const version = manifest.version ?? "4.10.3112.0";
+      app.commandLine.appendSwitch("widevine-cdm-path", widevineDir);
+      app.commandLine.appendSwitch("widevine-cdm-version", version);
+      console.log(`[smartv] Widevine DRM enabled (v${version})`);
+    } catch {
+      console.warn("[smartv] Failed to read Widevine manifest");
+    }
+  } else {
+    console.warn("[smartv] Widevine CDM not found — DRM content will not play");
+  }
 
   win = new BrowserWindow({
     ...(SHOT_PNG
@@ -547,6 +597,7 @@ async function createWindow(): Promise<void> {
       ...COMMON_WEB_PREFS,
       partition: SERVICE_PARTITION,
       preload: distFile("service-preload.cjs"),
+      plugins: true,
       ...shotPrefs,
     },
   });

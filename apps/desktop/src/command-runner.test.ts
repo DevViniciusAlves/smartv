@@ -15,6 +15,8 @@ describe("describeAction", () => {
     expect(up).toMatchObject({ kind: "press" });
     const play = describeAction({ type: "media", action: "playpause" });
     expect(play).toMatchObject({ kind: "press" });
+    expect(describeAction({ type: "media", action: "play" })).toEqual({ kind: "media-play" });
+    expect(describeAction({ type: "media", action: "pause" })).toEqual({ kind: "media-pause" });
     const next = describeAction({ type: "media", action: "next" });
     expect(next.kind).toBe("press");
   });

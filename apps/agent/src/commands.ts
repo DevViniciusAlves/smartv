@@ -42,6 +42,8 @@ export async function handleCommand(
     case "media": {
       switch (msg.action) {
         case "playpause": await auto.tap("space"); break;
+        case "play": await auto.tap("space"); break;
+        case "pause": await auto.tap("space"); break;
         case "seekForward": await auto.tap("right"); break;
         case "seekBackward": await auto.tap("left"); break;
         case "fullscreen": await auto.tap("f"); break;

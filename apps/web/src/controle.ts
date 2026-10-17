@@ -77,12 +77,12 @@ function renderStatus(s: ConnStatus): void {
       break;
     case "DESCONECTADO":
       if (link.reason === "sem-pareamento") {
-        paint("yellow", "DESCONECTADO", "Toque em 🔗 Conexão para parear com o PC");
+        paint("yellow", "DESCONECTADO", "Toque em Conexão para parear com o PC");
       } else if (link.reason === "pc-offline") {
         paint("orange", "DESCONECTADO", "PC offline — abra o SmarTV no PC");
       } else       if (link.reason === "token") {
         if (s.name === "error" && s.kind === "auth") {
-          paint("red", "DESCONECTADO", "Sessão inválida — pareie de novo em 🔗 Conexão");
+          paint("red", "DESCONECTADO", "Sessão inválida — pareie de novo em Conexão");
         } else if (s.name === "error" && s.kind === "origin") {
           paint("red", "Erro: origem não permitida");
           errorText.textContent =
@@ -133,7 +133,7 @@ function send(msg: ControllerMessage): void {
     subEl.textContent =
       st && st.name === "connected"
         ? "PC offline — comando não enviado. Ligue o app SmartTV no PC."
-        : "Sem conexão — pareie em 🔗 Conexão.";
+        : "Sem conexão — pareie em Conexão.";
     return;
   }
   conn?.send(msg);
@@ -153,7 +153,7 @@ function startConnection(): void {
   }
   const credential = getCredential();
   if (!credential) {
-    paint("yellow", "DESCONECTADO", "Toque em 🔗 Conexão para parear com o PC");
+    paint("yellow", "DESCONECTADO", "Toque em Conexão para parear com o PC");
     paintConnPill("DESCONECTADO");
     return;
   }
@@ -358,7 +358,7 @@ async function startScan(): Promise<void> {
   conn = null;
   localStorage.removeItem(PAIR_KEY);
   pairingBusy = false;
-  paint("yellow", "DESCONECTADO", "Conexão encerrada — pareie de novo em 🔗 Conexão");
+  paint("yellow", "DESCONECTADO", "Conexão encerrada — pareie de novo em Conexão");
   paintConnPill("DESCONECTADO");
   setConnMsg("Conexão encerrada. Para controlar de novo, pareie com outro código.");
 });

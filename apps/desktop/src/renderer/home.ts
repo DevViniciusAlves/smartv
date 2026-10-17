@@ -157,6 +157,46 @@ btnCheck.addEventListener("click", () => void bridge()?.checkUpdates());
 btnDownload.addEventListener("click", () => void bridge()?.downloadUpdate());
 btnRestart.addEventListener("click", () => void bridge()?.restartApp());
 
+// Monitor selection
+const monitorModal = document.getElementById("monitorModal") as HTMLElement;
+const monitorList = document.getElementById("monitorList") as HTMLElement;
+const btnSelectMonitor = document.getElementById("btnSelectMonitor") as HTMLButtonElement;
+const btnCloseMonitor = document.getElementById("btnCloseMonitor") as HTMLButtonElement;
+const btnMonitorOk = document.getElementById("btnMonitorOk") as HTMLButtonElement;
+
+let selectedDisplayId: number | null = null;
+
+btnSelectMonitor.addEventListener("click", async () => {
+  const displays = await bridge()?.getDisplays() ?? [];
+  monitorList.innerHTML = "";
+  selectedDisplayId = null;
+  
+  for (const d of displays) {
+    const btn = document.createElement("button");
+    btn.className = "monitor-item";
+    btn.textContent = d.label;
+    btn.addEventListener("click", () => {
+      selectedDisplayId = d.id;
+      // Highlight selection
+      document.querySelectorAll(".monitor-item").forEach(el => el.classList.remove("selected"));
+      btn.classList.add("selected");
+    });
+    monitorList.appendChild(btn);
+  }
+  monitorModal.classList.remove("hidden");
+});
+
+btnMonitorOk.addEventListener("click", () => {
+  if (selectedDisplayId !== null) {
+    void bridge()?.setDisplay(selectedDisplayId);
+  }
+  monitorModal.classList.add("hidden");
+});
+
+btnCloseMonitor.addEventListener("click", () => {
+  monitorModal.classList.add("hidden");
+});
+
 // Show update controls initially
 updateControls.classList.remove("hidden");
 

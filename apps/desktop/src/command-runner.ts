@@ -28,6 +28,8 @@ export type SurfaceAction =
   | { kind: "go-home" }
   | { kind: "go-back" }
   | { kind: "open-app"; id: string }
+  | { kind: "media-play" }
+  | { kind: "media-pause" }
   | { kind: "press"; events: KeyEventLike[] }
   | { kind: "system"; scriptKind: SystemScriptKind; step?: number; dx?: number; dy?: number }
   | { kind: "ignore" };
@@ -69,6 +71,8 @@ export function describeAction(msg: ControllerMessage): SurfaceAction {
       return { kind: "press", events: press(KEY_TO_CODE[msg.key] ?? "Enter") };
     case "media":
       if (msg.action === "playpause") return { kind: "press", events: press("Space") };
+      if (msg.action === "play") return { kind: "media-play" };
+      if (msg.action === "pause") return { kind: "media-pause" };
       if (msg.action === "seekForward") return { kind: "press", events: press("Right") };
       if (msg.action === "seekBackward") return { kind: "press", events: press("Left") };
       if (msg.action === "fullscreen") return { kind: "press", events: press("F") };

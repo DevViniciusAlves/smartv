@@ -23,7 +23,15 @@ export const keySchema = z.object({
 
 export const mediaSchema = z.object({
   type: z.literal("media"),
-  action: z.enum(["playpause", "seekForward", "seekBackward", "fullscreen", "next"]),
+  action: z.enum([
+    "playpause",
+    "play",
+    "pause",
+    "seekForward",
+    "seekBackward",
+    "fullscreen",
+    "next",
+  ]),
 });
 
 export const volumeSchema = z.object({
