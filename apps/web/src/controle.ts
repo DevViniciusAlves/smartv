@@ -541,15 +541,19 @@ document.querySelectorAll<HTMLElement>("[data-hold]").forEach((el) => {
   });
 }
 
-// Ao voltar do segundo plano (iOS inclusive): recria a conexão, sem confiar
-// no readyState do socket antigo. Sem credencial, não há o que reconectar.
-document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible") {
-    if (conn && getCredential()) conn.reconnect();
-    else if (getCredential()) startConnection();
-  }
-  if (document.visibilityState === "visible") void lockScreen();
-});
+// Ao voltar do segundo plano (iOS inclusive), recria a conexão sem confiar no
+// readyState do socket antigo. Alguns navegadores móveis não entregam
+// visibilitychange ao voltar do WhatsApp; pageshow/focus cobrem esse retorno.
+function reconnectWhenVisible(): void {
+  if (document.visibilityState !== "visible" || !getCredential()) return;
+  if (conn) conn.reconnect();
+  else startConnection();
+  void lockScreen();
+}
+
+document.addEventListener("visibilitychange", reconnectWhenVisible);
+window.addEventListener("pageshow", reconnectWhenVisible);
+window.addEventListener("focus", reconnectWhenVisible);
 // Rede voltou (Wi-Fi trocado, modo avião desligado): tenta na hora em vez de
 // esperar o backoff de 30 s. A reconexão é sempre a mesma credencial antiga.
 window.addEventListener("online", () => {
