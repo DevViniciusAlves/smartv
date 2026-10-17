@@ -115,6 +115,7 @@ export class BraveManager {
     const exe = this.resolveExecutable();
     if (!exe) return;
     const userDataDir = this.deps.userDataDir ?? "";
+    prepareWidevineProfile(userDataDir, this.deps.env);
     const port = this.getDebugPort();
     this.deps.log(`[smartv-brave] launching ${exe} (${this.currentUrl})`);
     const child = this.deps.spawn(exe, buildBraveArgs({ url: this.currentUrl, userDataDir, debugPort: port }));
@@ -311,6 +312,29 @@ export class BraveManager {
 /** Default profile dir inside the app's userData (cookies/logins survive). */
 export function braveUserDataDir(userDataDir: string): string {
   return path.join(userDataDir, "brave");
+}
+
+/**
+ * Brave installs Widevine as a browser component and keeps it under its
+ * normal profile. SmartTV intentionally uses a separate profile, so a fresh
+ * profile otherwise has no CDM and HBO/Netflix show their generic DRM error.
+ * Seed only the already-installed component; credentials and browsing data
+ * remain isolated in the SmartTV profile.
+ */
+function prepareWidevineProfile(userDataDir: string, env: Record<string, string | undefined>): void {
+  if (!userDataDir || process.platform !== "win32") return;
+  const localAppData = env.LOCALAPPDATA;
+  if (!localAppData) return;
+  const source = path.join(localAppData, "BraveSoftware", "Brave-Browser", "User Data", "WidevineCdm");
+  const destination = path.join(userDataDir, "WidevineCdm");
+  try {
+    if (!fs.existsSync(source)) return;
+    fs.mkdirSync(userDataDir, { recursive: true });
+    fs.cpSync(source, destination, { recursive: true, force: true });
+  } catch (err) {
+    // Failure is non-fatal; Brave may download/repair the component itself.
+    console.warn(`[smartv-brave] Widevine profile seed failed: ${(err as Error).message}`);
+  }
 }
 
 /** Default path of the compiled TV-navigation module (dist/service-preload.cjs). */
