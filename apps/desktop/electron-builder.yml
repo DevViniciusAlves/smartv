@@ -24,10 +24,8 @@ win:
   # ONLY nsis. A second target (dir) makes electron-builder run two concurrent
   # publish flows for the same tag: the assets split across TWO duplicate
   # releases and `releases/latest/download/latest.yml` 404s (app shows "Falha
-  # ao verificar atualização"). Never pass --win nsis on the CLI: electron-
-  # builder 26 ADDS CLI targets to the yml list instead of replacing them.
-  arch:
-    - x64
+  # ao verificar atualização"). `--win nsis` on the CLI does NOT override this
+  # list in electron-builder 26 — it must be a single target here.
   target:
     - nsis
 nsis:
