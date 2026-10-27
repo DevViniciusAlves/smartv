@@ -42,6 +42,14 @@ const SHOT_PNG = SHOT_ARG ? SHOT_ARG.slice("--smartv-shot=".length) : "";
 // logins survive restarts). One partition for all services, exactly like a
 // single browser profile; services stay isolated per-domain by the platform.
 const SERVICE_PARTITION = "persist:smartv";
+function isNetflixUrl(url: string): boolean {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return host === "netflix.com" || host.endsWith(".netflix.com");
+  } catch {
+    return false;
+  }
+}
 
 // Baked-in server + agent token (filled at build time by scripts/gen-defaults.mjs).
 // Empty in a plain dev build; real values in the released app => zero config.
@@ -54,6 +62,8 @@ let win: BrowserWindow | null = null;
 let barView: WebContentsView | null = null;
 let homeView: WebContentsView | null = null;
 let serviceView: WebContentsView | null = null;
+let serviceAdBlocker: ElectronBlocker | null = null;
+let serviceSessionForBlocker: Electron.Session | null = null;
 let pairView: WebContentsView | null = null;
 // Conexão overlay: a dedicated full-window WebContentsView. It lives OUTSIDE
 // the 56px bar (where the old modal was clipped) and covers everything, so it
@@ -404,6 +414,7 @@ function openService(id: string): { ok: boolean; error?: string } {
   const url = appUrl(id);
   if (!url) return { ok: false, error: "unknown app" };
   if (!serviceView) return { ok: false, error: "unknown app" };
+  updateServiceAdBlocking(url);
   applyState(router.openApp(id, url));
   serviceView.webContents.loadURL(url).catch((err: unknown) => {
     console.warn(`[smartv] loadURL failed: ${(err as Error).message}`);
@@ -440,10 +451,33 @@ function installNavGuard(wc: WebContents, onEscape: () => void): void {
   });
 }
 
+function updateServiceAdBlocking(url: string): void {
+  const blocker = serviceAdBlocker;
+  const serviceSession = serviceSessionForBlocker;
+  if (!blocker || !serviceSession) return;
+
+  // Netflix's player can fail when its site scripts or playback requests are
+  // filtered. Exempt Netflix only; keep the existing blocker for every other
+  // streaming service. There is one service view/session, so toggling follows
+  // the app selected by the user.
+  try {
+    blocker.disableBlockingInSession(serviceSession);
+    if (!isNetflixUrl(url)) {
+      blocker.enableBlockingInSession(serviceSession);
+      console.log("[smartv] Ad blocker enabled for non-Netflix service");
+    } else {
+      console.log("[smartv] Ad blocker bypassed for Netflix playback");
+    }
+  } catch (err) {
+    console.warn(`[smartv] Ad blocker scope change failed: ${(err as Error).message}`);
+  }
+}
+
 function guardServiceView(view: WebContentsView): void {
   const wc = view.webContents;
   // Top-level navigation locked to the allowlist; Escape returns Home.
   installNavGuard(wc, showHome);
+  wc.on("will-navigate", (_event, url) => updateServiceAdBlocking(url));
   wc.on("did-start-loading", () => applyState(router.onStarted()));
   wc.on("did-stop-loading", () => applyState(router.onStopped()));
   wc.on("did-fail-load", (_e, code, desc, url, isMainFrame) => {
@@ -583,13 +617,20 @@ async function finishShot(): Promise<void> {
 async function createWindow(): Promise<void> {
   // Ensures the persistent service partition exists (cookies survive restarts).
   const serviceSession = session.fromPartition(SERVICE_PARTITION, { cache: true });
+  serviceSessionForBlocker = serviceSession;
 
   // Ad blocker (same engine as Brave: EasyList + EasyPrivacy + anti-tracking).
+  // Netflix is exempted at the service-view navigation boundary only.
   if (!SHOT_PNG) {
     ElectronBlocker.fromPrebuiltAdsAndTracking()
       .then((blocker) => {
-        blocker.enableBlockingInSession(serviceSession);
-        console.log("[smartv] Ad blocker enabled (Ghostery/Brave engine)");
+        serviceAdBlocker = blocker;
+        if (!isNetflixUrl(serviceView?.webContents.getURL() ?? "")) {
+          blocker.enableBlockingInSession(serviceSession);
+          console.log("[smartv] Ad blocker enabled (Ghostery/Brave engine)");
+        } else {
+          console.log("[smartv] Ad blocker bypassed for Netflix playback");
+        }
       })
       .catch((err) => {
         console.warn(`[smartv] Ad blocker failed: ${err.message}`);
