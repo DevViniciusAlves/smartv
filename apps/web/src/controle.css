@@ -1,144 +1,60 @@
 :root { color-scheme: dark; }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html, body { height: 100%; overscroll-behavior: none; }
-body {
-  margin: 0; background: radial-gradient(120% 80% at 50% 0%, #131a28 0%, #0b0e14 60%);
-  color: #f2f5fa; font-family: system-ui, "Segoe UI", Roboto, sans-serif;
-  touch-action: manipulation;
+html, body { min-height:100%; overscroll-behavior:none; }
+body { margin:0; background:radial-gradient(120% 80% at 50% 0%,#131a28 0%,#0b0e14 60%); color:#f2f5fa; font-family:system-ui,"Segoe UI",Roboto,sans-serif; touch-action:manipulation; }
+.remote { width:100%; max-width:680px; min-height:100vh; min-height:100dvh; margin:0 auto; padding:calc(8px + env(safe-area-inset-top,0px)) calc(8px + env(safe-area-inset-right,0px)) calc(8px + env(safe-area-inset-bottom,0px)) calc(8px + env(safe-area-inset-left,0px)); display:flex; flex-direction:column; gap:12px; }
+.row { display:flex; gap:8px; align-items:center; justify-content:space-between; }
+.icon { width:24px; height:24px; flex:none; }
+.btn { min-height:48px; min-width:0; border:0; border-radius:14px; padding:0 10px; background:linear-gradient(180deg,#232c3d,#1a2130); color:#f2f5fa; font-size:.95rem; font-weight:700; box-shadow:0 1px 0 rgba(255,255,255,.06) inset; display:flex; align-items:center; justify-content:center; gap:7px; }
+.btn:active { background:#2c3a52; transform:scale(.97); }
+.btn.danger { background:#5b1a1a; }
+.nav { gap:5px; }
+.nav-btn { flex:1; min-height:42px; padding:0 4px; font-size:clamp(.65rem,2.5vw,.86rem); letter-spacing:.02em; white-space:nowrap; }
+.statusWrap { display:flex; flex-direction:column; align-items:center; min-width:0; }
+.statusStrip { margin-top:-5px; }
+.status { font-size:.82rem; font-weight:700; opacity:.9; text-align:center; }
+.status.flash { animation:stflash .35s ease; }
+@keyframes stflash { 0%{opacity:.2} 100%{opacity:1} }
+.sub { font-size:.68rem; opacity:.7; text-align:center; min-height:1em; overflow-wrap:anywhere; }
+.st-yellow { color:#ffd75e; } .st-green { color:#5eff8a; } .st-orange { color:#ffab5e; } .st-red { color:#ff6b6b; }
+.apps { display:flex; justify-content:space-around; align-items:center; gap:8px; width:100%; min-height:36px; }
+.apps .btn { flex:0 1 auto; min-height:34px; padding:0 2px; border-radius:7px; background:transparent; box-shadow:none; border-top:0; font-size:clamp(.72rem,3vw,1rem); color:var(--brand,#fff); white-space:nowrap; }
+.stage { width:100%; }
+.reference-stage { display:grid; grid-template-columns:minmax(70px,1fr) minmax(170px, min(42vw,250px)) minmax(70px,1fr); align-items:center; justify-items:center; gap:6px; flex:1; margin:auto 0; }
+.side-actions { width:100%; display:flex; flex-direction:column; align-items:stretch; gap:18px; }
+.utility { min-height:40px; padding:0 2px; background:transparent; box-shadow:none; border-radius:10px; font-size:clamp(.64rem,2.4vw,.85rem); white-space:nowrap; }
+.right-actions .utility { justify-content:center; }
+.dial { position:relative; width:100%; aspect-ratio:1; border-radius:24%; background:transparent; }
+.dial-btn { position:absolute; width:36%; height:36%; min-width:0; min-height:0; border-radius:22%; padding:0; display:flex; align-items:center; justify-content:center; background:#050608; box-shadow:0 1px 0 rgba(255,255,255,.05) inset; }
+.dial-btn .icon { width:48%; height:48%; }
+.dup { top:0; left:32%; } .ddown { bottom:0; left:32%; } .dleft { left:0; top:32%; } .dright { right:0; top:32%; }
+.dok { left:32%; top:32%; width:36%; height:36%; border-radius:50%; background:transparent; box-shadow:none; font-size:1rem; }
+.volume-row { display:flex; justify-content:center; gap:50px; padding:0 0 4px; }
+.volume-btn { flex:0 0 58px; width:58px; min-height:58px; border-radius:17px; background:#050608; color:#ff3030; font-size:1.4rem; }
+.panel { background:#121722; border:1px solid #273246; border-radius:16px; padding:12px; display:flex; flex-direction:column; gap:10px; }
+.hidden { display:none !important; }
+.panel input { min-height:48px; border-radius:12px; border:1px solid #333; background:#0e131c; color:#fff; padding:0 14px; font-size:1rem; width:100%; }
+.panel.error { border:1px solid #7a2e2e; }
+.errText { font-size:.88rem; opacity:.9; overflow-wrap:anywhere; }
+.hint { font-size:.88rem; opacity:.8; margin:0; }
+.touch { min-height:220px; background:#0e131c; border:1px dashed #3a4a66; border-radius:16px; display:flex; align-items:center; justify-content:center; text-align:center; padding:16px; touch-action:none; }
+.link { text-decoration:none; }
+.modal { position:fixed; inset:12px; z-index:50; margin:auto; max-width:520px; max-height:90vh; overflow:auto; border:1px solid #2c3a52; }
+.mHead { display:flex; align-items:center; justify-content:space-between; }
+.tabs .tab { opacity:.6; } .tabs .tab.active { opacity:1; background:#2e4a7a; }
+#pairInput { text-align:center; font-size:1.6rem; letter-spacing:.3em; font-weight:800; }
+.scan { width:100%; border-radius:16px; background:#000; max-height:300px; }
+.row.between { justify-content:space-between; }
+@media (max-width:380px) {
+ .remote { gap:8px; padding-left:6px; padding-right:6px; }
+ .reference-stage { grid-template-columns:minmax(56px,1fr) minmax(150px,44vw) minmax(56px,1fr); gap:2px; }
+ .side-actions { gap:12px; }
+ .utility { font-size:.62rem; }
+ .volume-row { gap:40px; }
 }
-.remote {
-  width: 100%; max-width: none; margin: 0;
-  min-height: 100vh; min-height: 100dvh;
-  padding:
-    calc(8px + env(safe-area-inset-top, 0px))
-    calc(8px + env(safe-area-inset-right, 0px))
-    calc(8px + env(safe-area-inset-bottom, 0px))
-    calc(8px + env(safe-area-inset-left, 0px));
-  display: flex; flex-direction: column; gap: 10px;
-}
-@media (min-width: 720px) { .remote { max-width: 900px; } }
-.row { display: flex; gap: 10px; align-items: center; justify-content: space-between; }
-
-/* ---- icons ---- */
-.icon { width: 28px; height: 28px; flex: none; color: inherit; }
-
-/* ---- buttons ---- */
-.btn {
-  min-height: 68px; min-width: 56px; flex: 1; border: 0; border-radius: 18px;
-  background: linear-gradient(180deg, #232c3d, #1a2130); color: #fff;
-  font-size: 1.2rem; font-weight: 600; box-shadow: 0 1px 0 rgba(255,255,255,.06) inset;
-  display: flex; align-items: center; justify-content: center; gap: 8px;
-}
-.btn:active { background: #2c3a52; transform: scale(0.97); }
-.btn.round {
-  border-radius: 999px; flex: 0 0 72px; width: 72px; height: 72px; min-height: 72px;
-}
-.btn.danger { background: #5b1a1a; }
-.btn.link { display: flex; align-items: center; justify-content: center; text-decoration: none; }
-.btn.wide { flex: 1; }
-
-/* ---- top bar ---- */
-.status { font-size: 0.95rem; font-weight: 600; opacity: 0.9; text-align: center; flex: 2; }
-.status.flash { animation: stflash 0.35s ease; }
-@keyframes stflash { 0% { opacity: 0.2; } 100% { opacity: 1; } }
-.statusWrap { flex: 2; display: flex; flex-direction: column; align-items: center; min-width: 0; }
-.sub { font-size: 0.78rem; opacity: 0.7; text-align: center; min-height: 1em; overflow-wrap: anywhere; }
-.st-yellow { color: #ffd75e; } .st-green { color: #5eff8a; }
-.st-orange { color: #ffab5e; } .st-red { color: #ff6b6b; }
-
-/* ---- app shortcuts ---- */
-.apps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; width: 100%; }
-.apps .btn { min-height: 60px; padding: 0 6px; font-size: 1rem; border-top: 4px solid var(--brand, #888); }
-
-/* ---- main remote body: dial on top, volume | media below ---- */
-.stage { display: flex; flex-direction: column; align-items: center; gap: 16px; width: 100%; }
-.dial {
-  position: relative; width: min(85vw, 380px); aspect-ratio: 1; border-radius: 50%;
-  background: radial-gradient(circle at 50% 35%, #334056 0%, #1b2130 62%, #10141d 100%);
-  box-shadow: 0 0 0 6px #0f131c, 0 0 0 7px #2c3a52, 0 10px 24px rgba(0,0,0,.5);
-}
-.dial-btn {
-  position: absolute; width: 32%; height: 32%; min-width: 0; min-height: 0;
-  border-radius: 50%; display: flex; align-items: center; justify-content: center;
-}
-.dial-btn .icon { width: 58%; height: 58%; }
-.dup { top: 2%; left: calc(50% - 16%); }
-.ddown { bottom: 2%; left: calc(50% - 16%); }
-.dleft { left: 2%; top: calc(50% - 16%); }
-.dright { right: 2%; top: calc(50% - 16%); }
-.dok {
-  left: 33%; top: 33%; width: 34%; height: 34%;
-  background: linear-gradient(180deg, #3a5a94, #2e4a7a); font-weight: 800; font-size: 1.35rem;
-}
-
-.rockers {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
-  width: 100%; max-width: 560px; align-items: stretch;
-}
-.rocker { display: flex; flex-direction: column; gap: 10px; }
-.rock { min-height: 64px; font-size: 1.15rem; }
-.rock .icon { width: 32px; height: 32px; }
-
-/* ---- bottom controls ---- */
-.controls { gap: 10px; }
-.controls .btn { font-size: 0.98rem; gap: 6px; padding: 0 8px; }
-
-/* ---- panels ---- */
-.panel { background: #121722; border-radius: 16px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
-.hidden { display: none; }
-.panel input { min-height: 56px; border-radius: 12px; border: 1px solid #333; background: #0e131c; color: #fff; padding: 0 14px; font-size: 1.1rem; width: 100%; }
-.panel.error { border: 1px solid #7a2e2e; }
-.errText { font-size: 0.88rem; opacity: 0.9; overflow-wrap: anywhere; }
-.hint { font-size: 0.88rem; opacity: 0.8; margin: 0; }
-.touch { min-height: 260px; background: #0e131c; border: 1px dashed #3a4a66; border-radius: 16px; display: flex; align-items: center; justify-content: center; text-align: center; padding: 16px; touch-action: none; }
-
-/* ---- connection modal ---- */
-.modal { position: fixed; inset: 12px; z-index: 50; margin: auto; max-width: 520px; max-height: 90vh; overflow: auto; border: 1px solid #2c3a52; }
-.mHead { display: flex; align-items: center; justify-content: space-between; }
-.tabs .tab { opacity: 0.6; }
-.tabs .tab.active { opacity: 1; background: #2e4a7a; }
-#pairInput { text-align: center; font-size: 1.6rem; letter-spacing: 0.3em; font-weight: 800; }
-.scan { width: 100%; border-radius: 16px; background: #000; max-height: 300px; }
-.row.between { justify-content: space-between; }
-
-/* Compact phone layout: keep the complete remote visible on short screens.
- * The desktop layout remains unchanged. The dial and media controls share
- * the same row so the four media actions do not push the bottom toolbar below
- * the viewport. */
-@media (max-width: 600px) and (max-height: 700px) {
-  html, body { overflow: hidden; }
-  .remote {
-    min-height: 100dvh;
-    height: 100dvh;
-    padding: calc(6px + env(safe-area-inset-top, 0px))
-      calc(6px + env(safe-area-inset-right, 0px))
-      calc(6px + env(safe-area-inset-bottom, 0px))
-      calc(6px + env(safe-area-inset-left, 0px));
-    gap: 6px;
-  }
-  .row { gap: 6px; }
-  .btn { min-height: 44px; border-radius: 14px; font-size: .92rem; }
-  .btn.round { flex-basis: 48px; width: 48px; height: 48px; min-height: 48px; }
-  .icon { width: 22px; height: 22px; }
-  .status { font-size: .78rem; }
-  .sub { font-size: .62rem; line-height: 1.05; }
-  .apps { gap: 6px; }
-  .apps .btn { min-height: 44px; border-radius: 12px; font-size: .78rem; }
-  .stage {
-    flex: 1 1 auto;
-    min-height: 0;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 14px;
-  }
-  .dial { width: min(82vw, 340px); flex: 0 0 auto; }
-  .rockers { width: min(94vw, 480px); max-width: none; gap: 8px; }
-  .rocker { gap: 6px; }
-  .rock { min-height: 0; height: clamp(44px, 8.5vh, 58px); font-size: .92rem; padding: 0 4px; }
-  .rock .icon { width: 24px; height: 24px; }
-  .dok { font-size: 1.15rem; }
-  .controls { flex: 0 0 auto; }
-  .controls .btn { min-height: 42px; font-size: .72rem; padding: 0 4px; }
-  .controls .icon { width: 18px; height: 18px; }
+@media (min-width:600px) {
+ .remote { max-width:760px; }
+ .reference-stage { grid-template-columns:1fr minmax(230px,270px) 1fr; }
+ .dial-btn { border-radius:24%; }
+ .side-actions { gap:24px; }
 }
