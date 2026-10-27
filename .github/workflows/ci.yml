@@ -37,17 +37,23 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Install CastLabs Electron binary
-        run: node node_modules/electron/install.js
+        shell: pwsh
+        run: |
+          $electronPackage = Join-Path $env:GITHUB_WORKSPACE 'apps/desktop/node_modules/electron'
+          $packageJson = Get-Content (Join-Path $electronPackage 'package.json') -Raw | ConvertFrom-Json
+          if ($packageJson.version -ne '44.5.1+wvcus') {
+            throw "Expected CastLabs Electron 44.5.1+wvcus, found $($packageJson.version) at $electronPackage"
+          }
+          node (Join-Path $electronPackage 'install.js')
       - name: Verify CastLabs Electron installation
         shell: pwsh
         run: |
-          $electronDir = Join-Path $env:GITHUB_WORKSPACE 'node_modules/electron/dist'
+          $electronDir = Join-Path $env:GITHUB_WORKSPACE 'apps/desktop/node_modules/electron/dist'
           $electronExe = Join-Path $electronDir 'electron.exe'
           if (-not (Test-Path $electronExe)) {
-            Write-Host "Expected Electron path not found: $electronDir"
-            npm ls electron -w apps/desktop
-            Get-ChildItem (Join-Path $env:GITHUB_WORKSPACE 'node_modules') -Directory -Filter '*electron*' | Select-Object -ExpandProperty FullName
-            throw "CastLabs Electron distribution is missing. Check Node version and package install output."
+            Write-Host "Expected CastLabs Electron path not found: $electronDir"
+            Get-ChildItem (Join-Path $env:GITHUB_WORKSPACE 'apps/desktop/node_modules/electron') -Force | Select-Object Name, Mode
+            throw "CastLabs Electron distribution is missing."
           }
           Write-Host "CastLabs Electron distribution verified: $electronExe"
       - name: Build Windows test installer
@@ -97,7 +103,14 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Install CastLabs Electron binary
-        run: node node_modules/electron/install.js
+        shell: pwsh
+        run: |
+          $electronPackage = Join-Path $env:GITHUB_WORKSPACE 'apps/desktop/node_modules/electron'
+          $packageJson = Get-Content (Join-Path $electronPackage 'package.json') -Raw | ConvertFrom-Json
+          if ($packageJson.version -ne '44.5.1+wvcus') {
+            throw "Expected CastLabs Electron 44.5.1+wvcus, found $($packageJson.version) at $electronPackage"
+          }
+          node (Join-Path $electronPackage 'install.js')
       - name: Tag must match apps/desktop version
         env:
           TAG: ${{ github.ref_name }}
