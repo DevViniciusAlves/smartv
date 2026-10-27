@@ -1,14 +1,12 @@
 appId: com.smartv.app
 productName: SmartTV
 copyright: Copyright © 2026
-# Must match the electron version in package.json (workaround for
-# electron-builder not resolving the hoisted workspace install).
+# Must match apps/desktop/package.json (CastLabs Electron with Widevine).
 electronVersion: 44.5.1+wvcus
-# electron-builder resolves electronDist relative to apps/desktop (the project
-# directory), while npm workspaces hoist the CastLabs package to the repo root.
-# Point to the actual installed CastLabs distribution instead of a non-existent
-# apps/desktop/node_modules/electron/dist path.
-electronDist: ../../node_modules/electron/dist
+# electron-builder resolves electronDist from the desktop workspace. The lockfile
+# places CastLabs here; the repository-root electron package is a different,
+# stock Electron version and must never be used for the installer.
+electronDist: node_modules/electron/dist
 directories:
   output: release
 asarUnpack:
