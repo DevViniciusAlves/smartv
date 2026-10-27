@@ -42,7 +42,6 @@ const SHOT_PNG = SHOT_ARG ? SHOT_ARG.slice("--smartv-shot=".length) : "";
 // logins survive restarts). One partition for all services, exactly like a
 // single browser profile; services stay isolated per-domain by the platform.
 const SERVICE_PARTITION = "persist:smartv";
-const NETFLIX_HOSTS = new Set(["netflix.com", "www.netflix.com", "help.netflix.com"]);
 function isNetflixUrl(url: string): boolean {
   try {
     const host = new URL(url).hostname.toLowerCase();
@@ -63,7 +62,6 @@ let win: BrowserWindow | null = null;
 let barView: WebContentsView | null = null;
 let homeView: WebContentsView | null = null;
 let serviceView: WebContentsView | null = null;
-let activeServiceId: string | null = null;
 let serviceAdBlocker: ElectronBlocker | null = null;
 let serviceSessionForBlocker: Electron.Session | null = null;
 let pairView: WebContentsView | null = null;
@@ -416,7 +414,6 @@ function openService(id: string): { ok: boolean; error?: string } {
   const url = appUrl(id);
   if (!url) return { ok: false, error: "unknown app" };
   if (!serviceView) return { ok: false, error: "unknown app" };
-  activeServiceId = id;
   updateServiceAdBlocking(url);
   applyState(router.openApp(id, url));
   serviceView.webContents.loadURL(url).catch((err: unknown) => {
