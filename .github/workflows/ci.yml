@@ -36,10 +36,12 @@ jobs:
           node-version: 22.12.0
           cache: npm
       - run: npm ci
+      - name: Install CastLabs Electron binary
+        run: node node_modules/electron/install.js
       - name: Verify CastLabs Electron installation
         shell: pwsh
         run: |
-          $electronDir = Join-Path $env:GITHUB_WORKSPACE 'apps/desktop/node_modules/electron/dist'
+          $electronDir = Join-Path $env:GITHUB_WORKSPACE 'node_modules/electron/dist'
           $electronExe = Join-Path $electronDir 'electron.exe'
           if (-not (Test-Path $electronExe)) {
             Write-Host "Expected Electron path not found: $electronDir"
@@ -94,6 +96,8 @@ jobs:
           node-version: 22.12.0
           cache: npm
       - run: npm ci
+      - name: Install CastLabs Electron binary
+        run: node node_modules/electron/install.js
       - name: Tag must match apps/desktop version
         env:
           TAG: ${{ github.ref_name }}
