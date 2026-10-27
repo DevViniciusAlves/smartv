@@ -57,20 +57,15 @@
   </svg>
 
   <div id="app" class="remote">
-    <div class="row top">
-      <button id="btnPower" class="btn round danger" aria-label="Desligar tela">
-        <svg class="icon"><use href="#i-power"></use></svg>
-      </button>
-      <div class="statusWrap">
-        <div id="status" class="status st-yellow">Carregando…</div>
-        <div id="substatus" class="sub"></div>
-      </div>
-      <button id="btnConn" class="btn round" aria-label="Conexão com o SmarTV">
-        <svg class="icon"><use href="#i-link"></use></svg>
-      </button>
-      <button id="btnHome" class="btn round" aria-label="Início">
-        <svg class="icon"><use href="#i-home"></use></svg>
-      </button>
+    <div class="row top nav">
+      <button id="btnPower" class="btn nav-btn danger" aria-label="Sair / desligar tela">SAIR</button>
+      <button id="btnMore" class="btn nav-btn" aria-expanded="false" aria-label="Avançado">AVANÇADO</button>
+      <button id="btnSearch" class="btn nav-btn" aria-label="Pesquisar">PESQUISAR</button>
+      <button id="btnHome" class="btn nav-btn" aria-label="Início">INÍCIO</button>
+    </div>
+    <div class="statusWrap statusStrip">
+      <div id="status" class="status st-yellow">Carregando…</div>
+      <div id="substatus" class="sub"></div>
     </div>
 
     <div id="errorPanel" class="panel error hidden">
@@ -83,52 +78,26 @@
 
     <div id="apps" class="row apps" aria-label="Serviços"></div>
 
-    <div class="stage">
-      <div class="dial" role="group" aria-label="Direcional">
-        <button class="btn dial-btn dup" data-hold="key:up" aria-label="Cima">
-          <svg class="icon"><use href="#i-up"></use></svg>
-        </button>
-        <button class="btn dial-btn dleft" data-hold="key:left" aria-label="Esquerda">
-          <svg class="icon"><use href="#i-left"></use></svg>
-        </button>
-        <button class="btn dial-btn dok" data-send='{"type":"key","key":"enter"}' aria-label="OK">OK</button>
-        <button class="btn dial-btn dright" data-hold="key:right" aria-label="Direita">
-          <svg class="icon"><use href="#i-right"></use></svg>
-        </button>
-        <button class="btn dial-btn ddown" data-hold="key:down" aria-label="Baixo">
-          <svg class="icon"><use href="#i-down"></use></svg>
-        </button>
+    <div class="stage reference-stage">
+      <div class="side-actions left-actions">
+        <button class="btn utility" data-send='{"type":"volume","action":"mute"}' aria-label="Mudo">MUDO</button>
+        <button class="btn utility" data-send='{"type":"key","key":"back"}' aria-label="Voltar">VOLTAR</button>
       </div>
-
-      <div class="rockers">
-        <div class="rocker" role="group" aria-label="Volume">
-          <button class="btn rock" data-hold="volume:up" aria-label="Aumentar volume">Vol +</button>
-          <button class="btn rock" data-send='{"type":"volume","action":"mute"}' aria-label="Mudo">Mudo</button>
-          <button class="btn rock" data-hold="volume:down" aria-label="Diminuir volume">Vol −</button>
-        </div>
-        <div class="rocker" role="group" aria-label="Mídia">
-          <button class="btn rock" data-send='{"type":"media","action":"seekBackward"}' aria-label="Retroceder 10 segundos">−10s</button>
-          <button class="btn rock" data-send='{"type":"media","action":"play"}' aria-label="Reproduzir">
-            <svg class="icon"><use href="#i-play"></use></svg>
-          </button>
-          <button class="btn rock" data-send='{"type":"media","action":"pause"}' aria-label="Pausar">
-            <svg class="icon"><use href="#i-pause"></use></svg>
-          </button>
-          <button class="btn rock" data-send='{"type":"media","action":"seekForward"}' aria-label="Avançar 10 segundos">+10s</button>
-        </div>
+      <div class="dial" role="group" aria-label="Direcional">
+        <button class="btn dial-btn dup" data-hold="key:up" aria-label="Cima"><svg class="icon"><use href="#i-up"></use></svg></button>
+        <button class="btn dial-btn dleft" data-hold="key:left" aria-label="Esquerda"><svg class="icon"><use href="#i-left"></use></svg></button>
+        <button class="btn dial-btn dok" data-send='{"type":"key","key":"enter"}' aria-label="OK">OK</button>
+        <button class="btn dial-btn dright" data-hold="key:right" aria-label="Direita"><svg class="icon"><use href="#i-right"></use></svg></button>
+        <button class="btn dial-btn ddown" data-hold="key:down" aria-label="Baixo"><svg class="icon"><use href="#i-down"></use></svg></button>
+      </div>
+      <div class="side-actions right-actions">
+        <button class="btn utility" data-send='{"type":"media","action":"fullscreen"}' aria-label="Tela cheia">TELA CHEIA</button>
+        <button class="btn utility" data-send='{"type":"media","action":"pause"}' aria-label="Pausar"><svg class="icon"><use href="#i-pause"></use></svg> PAUSAR</button>
       </div>
     </div>
-
-    <div class="row controls">
-      <button class="btn wide" data-send='{"type":"key","key":"back"}' aria-label="Voltar">
-        <svg class="icon"><use href="#i-back"></use></svg>Voltar
-      </button>
-      <button class="btn wide" data-send='{"type":"media","action":"fullscreen"}' aria-label="Tela cheia">
-        <svg class="icon"><use href="#i-fullscreen"></use></svg>Tela cheia
-      </button>
-      <button id="btnMore" class="btn wide" aria-expanded="false" aria-label="Avançado">
-        <svg class="icon"><use href="#i-more"></use></svg>Avançado
-      </button>
+    <div class="volume-row">
+      <button class="btn volume-btn" data-hold="volume:up" aria-label="Aumentar volume">+</button>
+      <button class="btn volume-btn" data-hold="volume:down" aria-label="Diminuir volume">−</button>
     </div>
 
     <div id="morePanel" class="panel hidden">
