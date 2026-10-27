@@ -423,6 +423,21 @@ document.querySelectorAll<HTMLElement>("[data-hold]").forEach((el) => {
   send({ type: "key", key: "home" }),
 );
 
+// Pesquisar abre o painel de teclado para digitar na tela/serviço atual.
+{
+  const search = document.getElementById("btnSearch") as HTMLElement;
+  const keyboardPanel = document.getElementById("keyboardPanel") as HTMLElement;
+  const keyboardInput = document.getElementById("kbdInput") as HTMLInputElement;
+  const morePanel = document.getElementById("morePanel") as HTMLElement;
+  search.addEventListener("click", () => {
+    morePanel.classList.remove("hidden");
+    (document.getElementById("btnMore") as HTMLElement).setAttribute("aria-expanded", "true");
+    keyboardPanel.classList.remove("hidden");
+    keyboardInput.placeholder = "Digite para pesquisar…";
+    keyboardInput.focus();
+  });
+}
+
 // Teclado: envia em tempo real com debounce curto + botões.
 {
   const panel = document.getElementById("keyboardPanel") as HTMLElement;
