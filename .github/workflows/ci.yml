@@ -17,7 +17,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22.12.0
           cache: npm
       - run: npm ci
       - run: npm run lint
@@ -33,9 +33,21 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22.12.0
           cache: npm
       - run: npm ci
+      - name: Verify CastLabs Electron installation
+        shell: pwsh
+        run: |
+          $electronDir = Join-Path $env:GITHUB_WORKSPACE 'apps/desktop/node_modules/electron/dist'
+          $electronExe = Join-Path $electronDir 'electron.exe'
+          if (-not (Test-Path $electronExe)) {
+            Write-Host "Expected Electron path not found: $electronDir"
+            npm ls electron -w apps/desktop
+            Get-ChildItem (Join-Path $env:GITHUB_WORKSPACE 'node_modules') -Directory -Filter '*electron*' | Select-Object -ExpandProperty FullName
+            throw "CastLabs Electron distribution is missing. Check Node version and package install output."
+          }
+          Write-Host "CastLabs Electron distribution verified: $electronExe"
       - name: Build Windows test installer
         env:
           SMARTV_BACKEND_URL: ${{ vars.SMARTV_BACKEND_URL || secrets.SMARTV_BACKEND_URL }}
@@ -79,7 +91,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22.12.0
           cache: npm
       - run: npm ci
       - name: Tag must match apps/desktop version
