@@ -1,6 +1,6 @@
 {
   "name": "@smartv/desktop",
-  "version": "1.0.20",
+  "version": "1.0.21",
   "private": true,
   "description": "Smart TV desktop app (Electron) for Windows",
   "author": "SmartTV",
