@@ -4,9 +4,11 @@ copyright: Copyright © 2026
 # Must match the electron version in package.json (workaround for
 # electron-builder not resolving the hoisted workspace install).
 electronVersion: 44.5.1+wvcus
-# Use the CastLabs Electron distribution installed by npm, not the stock
-# Electron release URL (CastLabs publishes its binaries from a different repo).
-electronDist: node_modules/electron/dist
+# electron-builder resolves electronDist relative to apps/desktop (the project
+# directory), while npm workspaces hoist the CastLabs package to the repo root.
+# Point to the actual installed CastLabs distribution instead of a non-existent
+# apps/desktop/node_modules/electron/dist path.
+electronDist: ../../node_modules/electron/dist
 directories:
   output: release
 asarUnpack:
