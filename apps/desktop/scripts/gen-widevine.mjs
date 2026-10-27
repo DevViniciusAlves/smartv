@@ -37,7 +37,11 @@ const dest = join(dist, "WidevineCdm");
 
 const src = findWidevine();
 if (!src) {
-  console.warn("[gen-widevine] Widevine CDM not found - DRM content will not play");
+  const message = "[gen-widevine] Widevine CDM not found. The packaged app will not have the browser CDM.";
+  if (process.platform === "win32") {
+    throw new Error(`${message} Install Chrome or Edge with Widevine, or configure the build environment before creating a Windows release.`);
+  }
+  console.warn(message);
   process.exit(0);
 }
 
