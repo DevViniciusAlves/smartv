@@ -3,9 +3,11 @@ productName: SmartTV
 copyright: Copyright © 2026
 # Must match the electron version in package.json (workaround for
 # electron-builder not resolving the hoisted workspace install).
-electronVersion: 44.8.0
+electronVersion: 44.5.1+wvcus
 directories:
   output: release
+asarUnpack:
+  - dist/WidevineCdm/**
 files:
   - dist/**
   - "!dist/**/*.d.ts*"
