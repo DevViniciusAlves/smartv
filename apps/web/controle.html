@@ -63,9 +63,15 @@
       <button id="btnSearch" class="btn nav-btn" aria-label="Pesquisar">PESQUISAR</button>
       <button id="btnHome" class="btn nav-btn" aria-label="Início">INÍCIO</button>
     </div>
-    <div class="statusWrap statusStrip">
-      <div id="status" class="status st-yellow">Carregando…</div>
-      <div id="substatus" class="sub"></div>
+    <div class="connection-strip">
+      <div class="statusWrap statusStrip">
+        <div id="status" class="status st-yellow">Carregando…</div>
+        <div id="substatus" class="sub"></div>
+      </div>
+      <button id="btnConn" class="btn connection-btn" aria-label="Conexão com a TV" aria-haspopup="dialog">
+        <svg class="icon"><use href="#i-link"></use></svg>
+        CONEXÃO
+      </button>
     </div>
 
     <div id="errorPanel" class="panel error hidden">
