@@ -6,7 +6,7 @@ copyright: Copyright © 2026
 electronVersion: 44.5.1+wvcus
 # Use the CastLabs Electron distribution installed by npm, not the stock
 # Electron release URL (CastLabs publishes its binaries from a different repo).
-electronDist: ../../node_modules/electron/dist
+electronDist: node_modules/electron/dist
 directories:
   output: release
 asarUnpack:
