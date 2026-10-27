@@ -790,10 +790,19 @@ async function main(): Promise<void> {
   // MUST be before app.whenReady() — Chromium reads these switches at init.
   if (!SHOT_PNG) {
     app.commandLine.appendSwitch("autoplay-policy", "no-user-gesture-required");
-    const widevineDir = path.join(DIST, "WidevineCdm");
-    const widevineManifest = path.join(widevineDir, "manifest.json");
-    const widevineDll = path.join(widevineDir, "_platform_specific", "win_x64", "widevinecdm.dll");
-    if (fs.existsSync(widevineDll) && fs.existsSync(widevineManifest)) {
+    // Native CDM binaries cannot be loaded from inside app.asar. Prefer the
+    // electron-builder asarUnpack destination in packaged builds, while keeping
+    // the regular dist path for development builds.
+    const widevineCandidates = [
+      path.join(path.dirname(app.getAppPath()), "app.asar.unpacked", "dist", "WidevineCdm"),
+      path.join(DIST, "WidevineCdm"),
+    ];
+    const widevineDir = widevineCandidates.find((candidate) =>
+      fs.existsSync(path.join(candidate, "_platform_specific", "win_x64", "widevinecdm.dll")) &&
+      fs.existsSync(path.join(candidate, "manifest.json")),
+    );
+    if (widevineDir) {
+      const widevineManifest = path.join(widevineDir, "manifest.json");
       try {
         const manifest = JSON.parse(fs.readFileSync(widevineManifest, "utf8")) as { version?: string };
         const version = manifest.version ?? "4.10.3112.0";
