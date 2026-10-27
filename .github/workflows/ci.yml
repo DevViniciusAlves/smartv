@@ -25,6 +25,50 @@ jobs:
       - run: npm test
       - run: npm run build
 
+  package-test:
+    needs: validate
+    if: github.event_name == 'pull_request'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Build Windows test installer
+        env:
+          SMARTV_BACKEND_URL: ${{ vars.SMARTV_BACKEND_URL || secrets.SMARTV_BACKEND_URL }}
+          SMARTV_AGENT_TOKEN: ${{ secrets.SMARTV_AGENT_TOKEN }}
+        run: npm run dist -w apps/desktop
+      - name: Verify installer and Widevine payload
+        shell: pwsh
+        run: |
+          $releaseDir = Join-Path $env:GITHUB_WORKSPACE 'apps/desktop/release'
+          $exe = Get-ChildItem $releaseDir -Filter '*.exe' | Where-Object { $_.Name -notlike '*.blockmap' }
+          if ($exe.Count -lt 1) {
+            throw "No Windows installer was generated in $releaseDir"
+          }
+          $widevineDir = Join-Path $env:GITHUB_WORKSPACE 'apps/desktop/dist/WidevineCdm'
+          if (-not (Test-Path $widevineDir)) {
+            throw "Widevine payload was not generated at $widevineDir"
+          }
+          $widevineFiles = Get-ChildItem $widevineDir -Recurse -File
+          if ($widevineFiles.Count -lt 1) {
+            throw "Widevine payload directory is empty: $widevineDir"
+          }
+          Write-Host "Installer(s):"
+          $exe | ForEach-Object { Write-Host $_.FullName }
+          Write-Host "Widevine files: $($widevineFiles.Count)"
+      - name: Upload Windows test installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: smartv-drm-test-installer
+          path: |
+            apps/desktop/release/*.exe
+          if-no-files-found: error
+          retention-days: 7
+
   release:
     needs: validate
     if: startsWith(github.ref, 'refs/tags/v')
@@ -44,10 +88,6 @@ jobs:
         run: node -e "const t=process.env.TAG.replace(/^v/,'');const v=require('./apps/desktop/package.json').version;if(t!==v){console.error('tag '+process.env.TAG+' != desktop '+v);process.exit(1)}"
       - name: Build Windows installer
         env:
-          # Baked into the installer (src/defaults.ts) so the PC needs ZERO
-          # configuration: it already knows the server and its own agent token.
-          # SMARTV_BACKEND_URL is a repo VARIABLE (not secret); the token is a
-          # repo SECRET. Change them in Settings → Secrets and variables → Actions.
           SMARTV_BACKEND_URL: ${{ vars.SMARTV_BACKEND_URL || secrets.SMARTV_BACKEND_URL }}
           SMARTV_AGENT_TOKEN: ${{ secrets.SMARTV_AGENT_TOKEN }}
         run: npm run dist -w apps/desktop
